@@ -29,19 +29,36 @@ EXCEL_ERRORS = {
     "#GETTING_DATA",
 }
 
-#: Strings the analysts use to mean "not applicable / no data for this slot".
-#: Deliberately conservative: a bare "-" is *not* included because it is also a
-#: legitimate value in some tables.
+#: Strings the analysts use to mean "no data for this slot".  A **closed list**
+#: on purpose (ADR-0013): unknown text is never promoted to NA, and the original
+#: is always kept in ``rawValue``.
 NA_TOKENS = {
+    # explicit
     "na",
     "n/a",
     "n.a.",
     "n.a",
-    "não aplicável",
-    "nao aplicavel",
+    "n/d",
+    "n.d.",
+    "nd",
+    # dashes used as "nothing to report"
+    "-",
+    "--",
+    "---",
+    "\u2010",  # hyphen
+    "\u2013",  # en dash
+    "\u2014",  # em dash
+    "\u2015",  # horizontal bar
+    # spelled out
     "not applicable",
+    "no data",
+    "nao aplicavel",
+    "não aplicável",
+    "nao ha dados",
+    "sem dados",
     "해당없음",
     "해당 없음",
+    "없음",
 }
 
 _NUMERIC_RE = re.compile(

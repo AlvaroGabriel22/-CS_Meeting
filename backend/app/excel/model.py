@@ -5,7 +5,7 @@ Excel file has been imported.  Nothing downstream (charts, exports, UI) is
 allowed to depend on openpyxl or on Excel coordinates: the coordinates are kept
 only as *provenance* metadata (debug / traceability), never as business rules.
 
-See docs/TABLE_MODEL.md for the rationale.
+See docs/data-model.md and docs/excel-parser.md for the rationale.
 """
 
 from __future__ import annotations
@@ -271,7 +271,8 @@ class ColumnDescriptor:
     header_path: tuple[str, ...] = ()  # ("2026", "Aug", "W32")
     label: str = ""
     period: Period | None = None
-    series: str | None = None  # "Target", "Result", ...
+    #: how the number was produced — "Target", "Result", "Plan"… never a metric
+    series_type: str | None = None
     semantic: SemanticType = SemanticType.UNKNOWN
     is_label_column: bool = False
     width: float | None = None
@@ -283,7 +284,7 @@ class ColumnDescriptor:
             "headerPath": list(self.header_path),
             "label": self.label,
             "period": self.period.to_dict() if self.period else None,
-            "series": self.series,
+            "seriesType": self.series_type,
             "semantic": self.semantic.value,
             "isLabelColumn": self.is_label_column,
             "width": self.width,
@@ -301,6 +302,9 @@ class RowDescriptor:
     category: str | None = None
     subcategory: str | None = None
     metric: str | None = None
+    #: "Target" / "Result" rows keep their series meaning instead of pretending
+    #: to be a metric (ADR-0012)
+    series_type: str | None = None
     semantic: SemanticType = SemanticType.UNKNOWN
     is_header_row: bool = False
     period: Period | None = None  # only when the table is transposed
@@ -316,6 +320,7 @@ class RowDescriptor:
             "category": self.category,
             "subcategory": self.subcategory,
             "metric": self.metric,
+            "seriesType": self.series_type,
             "semantic": self.semantic.value,
             "isHeaderRow": self.is_header_row,
             "period": self.period.to_dict() if self.period else None,

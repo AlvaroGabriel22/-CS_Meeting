@@ -16,11 +16,22 @@ def test_excel_errors_are_preserved_not_zeroed(raw: str) -> None:
     assert error == raw
 
 
-@pytest.mark.parametrize("raw", ["NA", "N/A", "n.a.", "해당없음"])
-def test_na_is_a_first_class_value(raw: str) -> None:
-    value_type, number, _text, error = coerce(raw)
+@pytest.mark.parametrize(
+    "raw",
+    ["NA", "N/A", "n.a.", "n/d", "해당없음", "Not applicable", "sem dados", "-", "--", "–", "—"],
+)
+def test_na_variants_normalise_to_one_semantic_value(raw: str) -> None:
+    """Every "no data" spelling becomes NA — and keeps its original text."""
+    value_type, number, text, error = coerce(raw)
     assert value_type is ValueType.NA
     assert number is None and error is None
+    assert text == raw  # rawValue is never rewritten
+
+
+@pytest.mark.parametrize("raw", ["TBD", "?", "pending", "check", "0", "OK"])
+def test_unknown_text_never_becomes_na(raw: str) -> None:
+    """The NA vocabulary is a closed list: nothing else is promoted to NA."""
+    assert coerce(raw)[0] is not ValueType.NA
 
 
 def test_empty_and_text() -> None:

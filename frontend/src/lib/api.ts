@@ -1,4 +1,10 @@
-import type { Department, HealthInfo, ImportRecord, NormalizedTable } from '@/types/api'
+import type {
+  Department,
+  HealthInfo,
+  ImportRecord,
+  Interpretation,
+  NormalizedTable,
+} from '@/types/api'
 
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -22,10 +28,14 @@ export const api = {
   getTable: (importId: number, tableId: number) =>
     request<NormalizedTable>(`/api/imports/${importId}/tables/${tableId}`),
 
+  /** Light semantic view: periods, hierarchy and values — no cells. */
+  getInterpretation: (importId: number, tableId: number) =>
+    request<Interpretation>(`/api/imports/${importId}/tables/${tableId}/interpretation`),
+
   uploadRawData: (department: Department, file: File) => {
     const form = new FormData()
     form.append('department', department)
     form.append('file', file)
-    return request<ImportRecord>('/api/imports', { method: 'POST', body: form })
+    return request<ImportRecord>('/api/uploads', { method: 'POST', body: form })
   },
 }

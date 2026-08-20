@@ -13,6 +13,17 @@ export type CellRole = 'header' | 'label' | 'value' | 'empty'
 export type ValueType = 'empty' | 'number' | 'text' | 'date' | 'bool' | 'error' | 'na'
 export type TableShape = 'matrix' | 'flat' | 'fragment'
 export type PeriodAxis = 'columns' | 'rows' | 'none'
+/** What a cell / row / column *means*, independent of where it sits. */
+export type SemanticType =
+  | 'title'
+  | 'period'
+  | 'series'
+  | 'category'
+  | 'subcategory'
+  | 'metric'
+  | 'value'
+  | 'label'
+  | 'unknown'
 
 /** A time slot discovered in the raw data — never hardcoded on the client. */
 export interface Period {
@@ -54,7 +65,9 @@ export interface TableColumn {
   headerPath: string[]
   label: string
   period: Period | null
-  series: string | null
+  /** "Target" / "Result" / "Plan" — how the number was produced, never a metric */
+  seriesType: string | null
+  semantic: SemanticType
   isLabelColumn: boolean
   width: number | null
 }
@@ -65,6 +78,13 @@ export interface TableRow {
   labelPath: string[]
   label: string
   level: number
+  /** interpreted hierarchy: category > subcategory > metric */
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  /** a Target/Result row keeps its series meaning instead of faking a metric */
+  seriesType: string | null
+  semantic: SemanticType
   isHeaderRow: boolean
   period: Period | null
   height: number | null
@@ -74,9 +94,15 @@ export interface TableCell {
   row: number
   col: number
   role: CellRole
+  semantic: SemanticType
   valueType: ValueType
+  /** the value exactly as the workbook holds it ("3,000", "NA", "#DIV/0!") */
+  rawValue: string | null
+  /** the interpreted number — never a rewritten original */
   number: number | null
   text: string | null
+  /** canonical rendering of `number` */
+  displayValue: string | null
   errorCode: string | null
   formula: string | null
   numberFormat: string | null
@@ -93,6 +119,9 @@ export interface NormalizedTable {
   sheetName: string
   sourceRange: string
   title: string | null
+  department: Department | null
+  /** label levels, outermost first */
+  hierarchy: string[]
   shape: TableShape
   periodAxis: PeriodAxis
   headerRowCount: number
@@ -113,6 +142,7 @@ export interface TableSummary {
   title: string | null
   shape: TableShape
   periodAxis: PeriodAxis
+  hierarchy: string[]
   rowCount: number
   colCount: number
   periods: Period[]
@@ -130,6 +160,8 @@ export interface RawFile {
 
 export interface ImportRecord {
   id: number
+  /** true when an identical file had already been parsed (no re-parse) */
+  reused: boolean
   department: Department
   parserVersion: string
   parsedAt: string
@@ -153,6 +185,43 @@ export interface HealthInfo {
   languages: Language[]
   defaultLanguage: Language
   translationProvider: string
+}
+
+/** Semantic projection of a table — periods, hierarchy and values. */
+export interface InterpretationValue {
+  period: string
+  seriesType?: string | null
+  metric?: string
+  type: ValueType
+  raw?: string | null
+  value?: number | null
+  display?: string | null
+  error?: string | null
+  source?: string | null
+}
+
+export interface InterpretationRow {
+  category?: string | null
+  subcategory?: string | null
+  metric?: string | null
+  seriesType?: string | null
+  label?: string
+  period?: string
+  sourceRow?: number | null
+  values: InterpretationValue[]
+}
+
+export interface Interpretation {
+  department: Department | null
+  sheet: string
+  table: string | null
+  sourceRange: string
+  shape: TableShape
+  periodAxis: PeriodAxis
+  hierarchy: string[]
+  periods: string[]
+  rows: InterpretationRow[]
+  warnings: string[]
 }
 
 export interface ApiError {
@@ -180,3 +249,88 @@ export interface RichNode {
 }
 
 export type RichDocument = RichNode & { type: 'doc' }
+
+/* -------------------------------------------------------------------------- *
+ * Presentation model (contract only in Sprint 0 — served from Sprint 1 on).
+ * -------------------------------------------------------------------------- */
+export type PresentationStatus = 'draft' | 'ready' | 'archived' | 'trashed'
+export type VersionStatus = 'draft' | 'published'
+export type ChartKind = 'line' | 'bar' | 'grouped-bar' | 'kpi' | 'target-result'
+
+export interface ChartDefinition {
+  id: number
+  orderIndex: number
+  kind: ChartKind
+  title: string | null
+  subtitle: string | null
+  tableDefinitionId: number | null
+  /** series/periods selected by label, never by column index */
+  config: Record<string, unknown>
+}
+
+export interface IssueReportCell {
+  id: number
+  rowId: number
+  columnId: number
+  doc: RichDocument
+  align: string
+  valign: string
+}
+
+export interface IssueReport {
+  id: number
+  department: Department
+  orderIndex: number
+  title: string
+  language: Language
+  columns: { id: number; index: number; title: string; width: number | null; align: string }[]
+  rows: { id: number; index: number; height: number | null }[]
+  cells: IssueReportCell[]
+  config: Record<string, unknown>
+}
+
+export interface Asset {
+  id: number
+  url: string
+  mimeType: string
+  sizeBytes: number
+  width: number | null
+  height: number | null
+}
+
+export interface PresentationVersion {
+  id: number
+  number: number
+  label: string | null
+  status: VersionStatus
+  notes: string | null
+  createdAt: string
+  publishedAt: string | null
+  parentVersionId: number | null
+}
+
+export interface Presentation {
+  id: number
+  department: Department
+  name: string
+  periodLabel: string | null
+  status: PresentationStatus
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+  trashedAt: string | null
+  latestVersion: PresentationVersion | null
+  versionCount: number
+  issueCount: number
+}
+
+export interface PresentationModel {
+  presentation: Presentation
+  version: PresentationVersion
+  imports: ImportRecord[]
+  tables: TableSummary[]
+  charts: ChartDefinition[]
+  issueReports: IssueReport[]
+  assets: Asset[]
+  language: Language
+}

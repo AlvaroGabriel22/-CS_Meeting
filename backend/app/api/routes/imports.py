@@ -1,4 +1,4 @@
-"""Raw-data import endpoints (Sprint 0 slice of the API)."""
+"""Raw-data upload and inspection endpoints."""
 
 from __future__ import annotations
 
@@ -10,32 +10,61 @@ from app.core.errors import NotFound
 from app.db.base import get_session
 from app.db.models import Department, DepartmentData, TableDefinition
 from app.schemas.imports import ImportOut
-from app.schemas.table import TableOut
+from app.schemas.table import InterpretationOut, TableOut
 from app.services import serializers
 from app.services.import_service import import_raw_data
+from app.services.interpretation import interpretation_view
 
-router = APIRouter(prefix="/api/imports", tags=["imports"])
+router = APIRouter(prefix="/api", tags=["raw data"])
 
 
-@router.post("", response_model=ImportOut, status_code=201)
-async def create_import(
-    department: Department = Form(...),
-    file: UploadFile = File(...),
-    session: Session = Depends(get_session),
+async def _handle_upload(
+    department: Department,
+    file: UploadFile,
+    force: bool,
+    session: Session,
 ) -> ImportOut:
     payload = await file.read()
-    data = import_raw_data(
+    result = import_raw_data(
         session,
         department=department,
         filename=file.filename or "upload.xlsx",
         content_type=file.content_type,
         payload=payload,
+        force_reparse=force,
     )
     session.flush()
-    return serializers.import_out(data)
+    return serializers.import_out(result.data, reused=result.reused)
 
 
-@router.get("", response_model=list[ImportOut])
+@router.post("/uploads", response_model=ImportOut, status_code=201)
+async def create_upload(
+    department: Department = Form(...),
+    file: UploadFile = File(...),
+    force: bool = Form(False),
+    session: Session = Depends(get_session),
+) -> ImportOut:
+    """Upload a raw workbook: validated, stored, parsed and persisted.
+
+    An identical file (same content hash, same parser version) is *not* parsed
+    twice — the previous import is returned with ``reused: true``.  Pass
+    ``force=true`` to parse again anyway.
+    """
+    return await _handle_upload(department, file, force, session)
+
+
+@router.post("/imports", response_model=ImportOut, status_code=201, include_in_schema=False)
+async def create_import(
+    department: Department = Form(...),
+    file: UploadFile = File(...),
+    force: bool = Form(False),
+    session: Session = Depends(get_session),
+) -> ImportOut:
+    """Alias of ``POST /api/uploads`` (kept so both names work)."""
+    return await _handle_upload(department, file, force, session)
+
+
+@router.get("/imports", response_model=list[ImportOut])
 def list_imports(
     department: Department | None = None,
     limit: int = 20,
@@ -47,7 +76,7 @@ def list_imports(
     return [serializers.import_out(data) for data in session.scalars(query)]
 
 
-@router.get("/{import_id}", response_model=ImportOut)
+@router.get("/imports/{import_id}", response_model=ImportOut)
 def get_import(import_id: int, session: Session = Depends(get_session)) -> ImportOut:
     data = session.get(DepartmentData, import_id)
     if data is None:
@@ -55,9 +84,29 @@ def get_import(import_id: int, session: Session = Depends(get_session)) -> Impor
     return serializers.import_out(data)
 
 
-@router.get("/{import_id}/tables/{table_id}", response_model=TableOut)
-def get_table(import_id: int, table_id: int, session: Session = Depends(get_session)) -> TableOut:
+def _table_or_404(session: Session, import_id: int, table_id: int) -> TableDefinition:
     definition = session.get(TableDefinition, table_id)
     if definition is None or definition.department_data_id != import_id:
         raise NotFound("Table not found", {"importId": import_id, "tableId": table_id})
-    return serializers.table_out(definition)
+    return definition
+
+
+@router.get("/imports/{import_id}/tables/{table_id}", response_model=TableOut)
+def get_table(import_id: int, table_id: int, session: Session = Depends(get_session)) -> TableOut:
+    """The full normalized table — cells included (heavy; use for rendering)."""
+    return serializers.table_out(_table_or_404(session, import_id, table_id))
+
+
+@router.get("/imports/{import_id}/tables/{table_id}/interpretation", response_model=InterpretationOut)
+def get_interpretation(
+    import_id: int,
+    table_id: int,
+    max_rows: int | None = None,
+    session: Session = Depends(get_session),
+) -> InterpretationOut:
+    """The semantic view: periods, hierarchy and values, no coordinates.
+
+    Light enough to inspect by hand and to feed charts.
+    """
+    table = serializers.table_out(_table_or_404(session, import_id, table_id))
+    return InterpretationOut.model_validate(interpretation_view(table, max_rows=max_rows))

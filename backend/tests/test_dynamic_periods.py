@@ -1,4 +1,8 @@
-"""The next week's file must work without touching a single line of code."""
+"""Next week's file must work without touching a single line of code.
+
+Dataset A -> B -> C is the same report over three weeks: the week window moves,
+then a new month and a new metric appear.
+"""
 
 from __future__ import annotations
 
@@ -7,43 +11,52 @@ from pathlib import Path
 from app.excel import parse_file
 
 
-def test_week_window_shifts_and_a_month_appears(fixture_files: dict[str, Path]) -> None:
-    """``iqc_w33`` is the same report one week later.
-
-    It gained ``Sep``, dropped ``W30``, gained ``W33`` and gained a ``Cost``
-    metric row — the parser adapts to all of it.
-    """
-    week32 = parse_file(fixture_files["iqc_w32.xlsx"]).tables[0]
-    week33 = parse_file(fixture_files["iqc_w33.xlsx"]).tables[0]
-
-    weeks_before = [p.week for p in week32.periods if p.kind.value == "week"]
-    weeks_after = [p.week for p in week33.periods if p.kind.value == "week"]
-    assert weeks_before == [30, 31, 32]
-    assert weeks_after == [31, 32, 33]
-
-    months_before = [p.month for p in week32.periods if p.kind.value == "month"]
-    months_after = [p.month for p in week33.periods if p.kind.value == "month"]
-    assert months_after == months_before + [9]  # September showed up
-
-    # the structural reading is identical even though the shape grew
-    assert week33.header_row_count == week32.header_row_count
-    assert week33.label_col_count == week32.label_col_count
-    assert week33.col_count == week32.col_count + 1
-    assert week33.row_count == week32.row_count + 3  # one extra metric per section
+def _table(fixture_files: dict[str, Path], dataset: str):
+    return parse_file(fixture_files[f"iqc_dataset_{dataset}.xlsx"], "IQC").tables[0]
 
 
-def test_new_metric_row_is_picked_up(fixture_files: dict[str, Path]) -> None:
-    week33 = parse_file(fixture_files["iqc_w33.xlsx"]).tables[0]
-    metrics = {row.label_path[1] for row in week33.rows if not row.is_header_row and len(row.label_path) > 1}
-    assert "Cost" in metrics
+def test_week_window_moves(fixture_files: dict[str, Path]) -> None:
+    a, b = _table(fixture_files, "a"), _table(fixture_files, "b")
+    assert [p.label for p in a.periods if p.kind.value == "week"] == ["W31", "W32"]
+    assert [p.label for p in b.periods if p.kind.value == "week"] == ["W33", "W34"]
+    assert a.col_count == b.col_count and a.row_count == b.row_count
 
 
-def test_period_sort_keys_are_stable_across_weeks(fixture_files: dict[str, Path]) -> None:
-    week32 = parse_file(fixture_files["iqc_w32.xlsx"]).tables[0]
-    week33 = parse_file(fixture_files["iqc_w33.xlsx"]).tables[0]
-    common = {p.label: p.sort_key for p in week32.periods} | {p.label: p.sort_key for p in week33.periods}
-    assert common["W32"] == "0000-W32"
-    assert common["Aug"] == "0000-M08"
-    # a chart built on labels keeps matching after the shift
-    shared = {p.label for p in week32.periods} & {p.label for p in week33.periods}
-    assert {"W31", "W32", "Aug", "2026"} <= shared
+def test_a_new_month_appears(fixture_files: dict[str, Path]) -> None:
+    b, c = _table(fixture_files, "b"), _table(fixture_files, "c")
+    months_b = [p.month for p in b.periods if p.kind.value == "month"]
+    months_c = [p.month for p in c.periods if p.kind.value == "month"]
+    assert months_c == months_b + [9]  # September joined, nothing else moved
+    assert c.header_row_count == b.header_row_count
+    assert c.label_col_count == b.label_col_count
+    assert c.hierarchy == b.hierarchy
+
+
+def test_a_new_row_is_picked_up(fixture_files: dict[str, Path]) -> None:
+    """Dataset C adds a Target row under every group."""
+    b, c = _table(fixture_files, "b"), _table(fixture_files, "c")
+    assert {row.metric for row in c.rows if row.metric} == {row.metric for row in b.rows if row.metric}
+    assert {row.series_type for row in b.rows if row.series_type} == set()
+    assert {row.series_type for row in c.rows if row.series_type} == {"Target"}
+    assert c.row_count == b.row_count + 9  # one added row per section/group pair
+
+
+def test_period_identity_is_stable_across_files(fixture_files: dict[str, Path]) -> None:
+    """A chart bound to labels/sortKeys keeps matching after the shift."""
+    b, c = _table(fixture_files, "b"), _table(fixture_files, "c")
+    keys_b = {p.label: p.sort_key for p in b.periods}
+    keys_c = {p.label: p.sort_key for p in c.periods}
+    shared = set(keys_b) & set(keys_c)
+    assert {"W33", "W34", "Aug", "2026"} <= shared
+    assert all(keys_b[label] == keys_c[label] for label in shared)
+    assert keys_c["W34"] == "0000-W34" and keys_c["Sep"] == "0000-M09"
+
+
+def test_no_dataset_needs_a_code_path_of_its_own(fixture_files: dict[str, Path]) -> None:
+    """Same call, three files, three valid models."""
+    for dataset in ("a", "b", "c"):
+        table = _table(fixture_files, dataset)
+        assert table.shape.value == "matrix"
+        assert table.period_axis.value == "columns"
+        assert table.hierarchy == ("category", "subcategory", "metric")
+        assert table.periods and table.cells and not table.warnings

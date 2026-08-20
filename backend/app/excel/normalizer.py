@@ -55,7 +55,7 @@ def _cell_semantic(
         column = interpretation.columns[col_offset]
         if column.period:
             return SemanticType.PERIOD
-        if column.series:
+        if column.series_type:
             return SemanticType.SERIES
         return SemanticType.LABEL
     if role is CellRole.LABEL:
@@ -64,6 +64,7 @@ def _cell_semantic(
             "category": SemanticType.CATEGORY,
             "subcategory": SemanticType.SUBCATEGORY,
             "metric": SemanticType.METRIC,
+            "series": SemanticType.SERIES,
         }.get(role_name, SemanticType.LABEL)
     if role is CellRole.VALUE:
         return SemanticType.VALUE

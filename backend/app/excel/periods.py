@@ -119,9 +119,22 @@ def normalize(token: str) -> str:
     return re.sub(r"\s+", " ", text).strip(" .:;*")
 
 
+#: series that oppose a plan to an outcome.  These are the ones that may occupy
+#: a whole axis of a table (a "Target" row and a "Result" row under the same
+#: model), which is why they are recognised apart from aggregation labels such
+#: as ``Total`` or ``YTD`` (ADR-0012).
+PLAN_VS_ACTUAL_SERIES = ("Target", "Result", "Plan", "Forecast")
+
+
 def match_series(token: str) -> str | None:
     """Return the canonical series name for a token such as ``Target``."""
     return _SERIES_TOKENS.get(normalize(token))
+
+
+def match_plan_actual_series(token: str) -> str | None:
+    """Like :func:`match_series`, restricted to plan-vs-outcome series."""
+    name = match_series(token)
+    return name if name in PLAN_VS_ACTUAL_SERIES else None
 
 
 def match_token(token: str) -> PeriodFacets | None:

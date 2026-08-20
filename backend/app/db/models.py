@@ -1,6 +1,6 @@
 """SQLite schema.
 
-Layering (see docs/DATA_MODEL.md):
+Layering (see docs/data-model.md):
 
 * **facts** — ``RawDataFile`` -> ``DepartmentData`` -> ``TableDefinition`` /
   ``TableColumn`` / ``TableRow`` / ``TableCell``.  Written once at import time
@@ -223,7 +223,8 @@ class TableColumn(Base):
     header_path: Mapped[list] = mapped_column(JSON, default=list)
     label: Mapped[str] = mapped_column(String(300), default="")
     period: Mapped[dict | None] = mapped_column(JSON)
-    series: Mapped[str | None] = mapped_column(String(60))
+    #: "Target" / "Result" / "Plan" — how the number was produced
+    series_type: Mapped[str | None] = mapped_column(String(60))
     semantic: Mapped[str] = mapped_column(String(16), default="unknown")
     is_label_column: Mapped[bool] = mapped_column(Boolean, default=False)
     width: Mapped[float | None] = mapped_column(Float)
@@ -247,6 +248,7 @@ class TableRow(Base):
     category: Mapped[str | None] = mapped_column(String(160))
     subcategory: Mapped[str | None] = mapped_column(String(160))
     metric: Mapped[str | None] = mapped_column(String(160))
+    series_type: Mapped[str | None] = mapped_column(String(60))
     semantic: Mapped[str] = mapped_column(String(16), default="unknown")
     is_header_row: Mapped[bool] = mapped_column(Boolean, default=False)
     period: Mapped[dict | None] = mapped_column(JSON)

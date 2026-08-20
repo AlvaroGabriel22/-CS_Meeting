@@ -11,7 +11,7 @@ from app.services.serializers import import_out, table_out
 
 
 def test_round_trip_keeps_structure_and_values(session, fixture_files: dict[str, Path]) -> None:
-    path = fixture_files["iqc_w32.xlsx"]
+    path = fixture_files["iqc_dataset_a.xlsx"]
     parsed = parse_file(path)
     source = parsed.tables[0]
 
@@ -50,11 +50,11 @@ def test_round_trip_keeps_structure_and_values(session, fixture_files: dict[str,
 
 
 def test_import_summary_lists_periods(session, fixture_files: dict[str, Path]) -> None:
-    parsed = parse_file(fixture_files["iqc_w33.xlsx"])
+    parsed = parse_file(fixture_files["iqc_dataset_c.xlsx"])
     raw = RawDataFile(
         department=Department.IQC,
-        original_filename="iqc_w33.xlsx",
-        stored_path="raw/IQC/iqc_w33.xlsx",
+        original_filename="iqc_dataset_c.xlsx",
+        stored_path="raw/IQC/iqc_dataset_c.xlsx",
         mime_type="application/octet-stream",
         size_bytes=1,
         sha256="1" * 64,
@@ -66,16 +66,16 @@ def test_import_summary_lists_periods(session, fixture_files: dict[str, Path]) -
 
     payload = import_out(data)
     assert payload.summary["tableCount"] == 1
-    assert {"W31", "W32", "W33", "Sep"} <= set(payload.summary["periodLabels"])
+    assert {"W33", "W34", "Sep"} <= set(payload.summary["periodLabels"])
     assert payload.tables[0].row_count > 0
 
 
 def test_reimport_creates_a_new_immutable_dataset(session, fixture_files: dict[str, Path]) -> None:
-    parsed = parse_file(fixture_files["iqc_w32.xlsx"])
+    parsed = parse_file(fixture_files["iqc_dataset_a.xlsx"])
     raw = RawDataFile(
         department=Department.IQC,
-        original_filename="iqc_w32.xlsx",
-        stored_path="raw/IQC/iqc_w32.xlsx",
+        original_filename="iqc_dataset_a.xlsx",
+        stored_path="raw/IQC/iqc_dataset_a.xlsx",
         mime_type="application/octet-stream",
         size_bytes=1,
         sha256="2" * 64,

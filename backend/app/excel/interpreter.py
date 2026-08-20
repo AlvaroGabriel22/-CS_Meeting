@@ -192,47 +192,88 @@ def _label_matrix(
     return matrix
 
 
+def _dominated_by(matrix: list[list[str]], index: int, predicate, minimum_distinct: int = 1) -> bool:
+    """True when a label column is mostly made of one kind of token."""
+    values = [row[index] for row in matrix if row[index]]
+    if not values:
+        return False
+    hits = [value for value in values if predicate(value)]
+    if len({value for value in hits}) < minimum_distinct:
+        return False
+    return len(hits) >= max(1, int(0.6 * len(values)))
+
+
 def _assign_hierarchy(
     matrix: list[list[str]], label_cols: int, schema: DepartmentSchema | None
 ) -> tuple[dict[int, str], tuple[str, ...]]:
-    """Decide which label column is the category, the subcategory, the metric.
+    """Decide what each label column is: category, subcategory, metric, series.
 
-    The metric is the innermost column whose values read as measured quantities
-    (``PPM``, ``Def.``, ``Insp.``, ``Target``…); when nothing matches the
-    vocabulary it falls back to the innermost label column, which is what the
-    layout itself implies.
+    Order of reasoning:
+
+    1. A column dominated by *plan-vs-outcome* labels (``Target``/``Result``)
+       is a **series**, never a metric — it says how a number was produced, not
+       what was measured (ADR-0012).
+    2. The outermost remaining column groups the rows, so it is a category and
+       is never considered for the metric role.
+    3. The metric is the innermost remaining column whose values read as
+       measured quantities (``PPM``, ``Def.``, ``Insp.``…); failing that, the
+       layout itself implies the innermost column names the measure.
+    4. A single label column of unknown words names the rows: category.
     """
     if label_cols <= 0 or not matrix:
         return {}, ()
 
-    metric_col = label_cols - 1
-    matched_vocabulary = False
-    for index in range(label_cols - 1, -1, -1):
-        values = [row[index] for row in matrix if row[index]]
-        if not values:
-            continue
-        hits = sum(1 for value in values if is_metric_token(value, schema))
-        if hits >= max(1, int(0.6 * len(values))):
-            metric_col = index
-            matched_vocabulary = True
-            break
+    roles: dict[int, str] = {}
 
-    if not matched_vocabulary and label_cols == 1:
-        # a single label column of unknown words names the rows, it does not
-        # measure them ("TECPLAM 1", "Model A") — that is a category
-        return {0: "category"}, ("category",)
+    series_col = next(
+        (
+            index
+            for index in range(label_cols - 1, -1, -1)
+            if _dominated_by(
+                matrix, index, lambda value: P.match_plan_actual_series(value) is not None, 2
+            )
+        ),
+        None,
+    )
+    if series_col is not None:
+        roles[series_col] = "series"
 
-    roles: dict[int, str] = {metric_col: "metric"}
-    outer = [index for index in range(label_cols) if index < metric_col]
+    remaining = [index for index in range(label_cols) if index not in roles]
+    if not remaining:
+        return roles, ("series",)
+
+    category_col = remaining[0] if len(remaining) >= 2 else None
+    metric_candidates = [index for index in remaining if index != category_col]
+
+    metric_col = next(
+        (
+            index
+            for index in reversed(metric_candidates)
+            if _dominated_by(matrix, index, lambda value: is_metric_token(value, schema))
+        ),
+        None,
+    )
+    if metric_col is None and series_col is None and len(remaining) >= 2:
+        metric_col = remaining[-1]
+
+    if metric_col is not None:
+        roles[metric_col] = "metric"
+
+    outer = [index for index in remaining if metric_col is None or index < metric_col]
     if outer:
         roles[outer[0]] = "category"
     if len(outer) >= 2:
         roles[outer[1]] = "subcategory"
     for index in outer[2:]:
-        roles[index] = "label"  # deeper groupings stay generic labels
+        roles[index] = "label"
 
+    order = {"category": 0, "subcategory": 1, "metric": 2, "series": 3}
     hierarchy = tuple(
-        roles[index] for index in sorted(roles) if roles[index] in ("category", "subcategory", "metric")
+        role
+        for role in sorted(
+            (role for role in roles.values() if role in order),
+            key=lambda role: order[role],
+        )
     )
     return roles, hierarchy
 
@@ -267,14 +308,16 @@ def interpret_region(
     for offset, col in enumerate(range(rect.c1, rect.c2 + 1)):
         header_path = tuple(row[offset] for row in header_values if row[offset])
         is_label = offset < label_cols
-        period, series = (None, None)
+        period, series_type = (None, None)
         if not is_label and header_rows:
-            period, series = P.build_period([row[offset] for row in header_values], row_kinds)
+            period, series_type = P.build_period(
+                [row[offset] for row in header_values], row_kinds
+            )
         if is_label:
             semantic = SemanticType.LABEL
         elif period:
             semantic = SemanticType.PERIOD
-        elif series:
+        elif series_type:
             semantic = SemanticType.SERIES
         else:
             semantic = SemanticType.UNKNOWN
@@ -285,7 +328,7 @@ def interpret_region(
                 header_path=header_path,
                 label=header_path[-1] if header_path else get_column_letter(col),
                 period=period,
-                series=series,
+                series_type=series_type,
                 semantic=semantic,
                 is_label_column=is_label,
                 width=sheet.col_widths.get(col),
@@ -324,10 +367,24 @@ def interpret_region(
                     descriptor.category = value
                 elif role == "subcategory":
                     descriptor.subcategory = value
+                elif role == "series":
+                    descriptor.series_type = P.match_plan_actual_series(value) or value
                 elif role == "metric":
-                    descriptor.metric = value
+                    # a plan/outcome label sitting in the metric column is still
+                    # a series: "Target" says how, not what (ADR-0012)
+                    series = P.match_plan_actual_series(value)
+                    if series:
+                        descriptor.series_type = series
+                    else:
+                        descriptor.metric = value
             if descriptor.metric:
                 descriptor.semantic = SemanticType.METRIC
+            elif descriptor.series_type:
+                descriptor.semantic = SemanticType.SERIES
+            elif descriptor.subcategory:
+                descriptor.semantic = SemanticType.SUBCATEGORY
+            elif descriptor.category:
+                descriptor.semantic = SemanticType.CATEGORY
         interpretation.rows.append(descriptor)
 
     # ---------------- period axis ----------------------------------------- #

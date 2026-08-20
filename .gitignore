@@ -20,3 +20,10 @@ frontend/dist/
 # build artifacts
 backend/.pytest_cache/
 frontend/*.tsbuildinfo
+
+# real department workbooks (confidential)
+backend/tests/fixtures/real/*.xlsx
+backend/tests/fixtures/real/*.xlsm
+
+# validation reports
+backend/reports/

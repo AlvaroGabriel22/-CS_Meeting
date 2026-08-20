@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def _upload(client, path: Path, department: str = "IQC"):
+def _upload(client, path: Path, department: str = "IQC", force: bool = False, name: str | None = None):
     return client.post(
-        "/api/imports",
-        data={"department": department},
+        "/api/uploads",
+        data={"department": department, "force": str(force).lower()},
         files={
             "file": (
-                path.name,
+                name or path.name,
                 path.read_bytes(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
@@ -27,7 +27,7 @@ def test_health_exposes_capabilities(client) -> None:
 
 
 def test_upload_parses_and_persists(client, fixture_files: dict[str, Path]) -> None:
-    response = _upload(client, fixture_files["iqc_w32.xlsx"])
+    response = _upload(client, fixture_files["iqc_dataset_a.xlsx"])
     assert response.status_code == 201, response.text
     body = response.json()
 
@@ -44,7 +44,7 @@ def test_upload_parses_and_persists(client, fixture_files: dict[str, Path]) -> N
     assert detail.status_code == 200
     table = detail.json()
     assert table["headerRowCount"] == 1
-    assert table["labelColCount"] == 2
+    assert table["labelColCount"] == 3
     assert len(table["cells"]) > 100
     assert any(cell["errorCode"] == "#DIV/0!" for cell in table["cells"])
     assert any(cell["valueType"] == "na" for cell in table["cells"])
@@ -94,18 +94,46 @@ def test_rejects_file_that_only_pretends_to_be_xlsx(client) -> None:
 
 
 def test_path_traversal_filename_is_neutralised(client, fixture_files: dict[str, Path]) -> None:
-    path = fixture_files["iqc_w32.xlsx"]
-    response = client.post(
-        "/api/imports",
-        data={"department": "IQC"},
-        files={
-            "file": (
-                "../../../../etc/passwd.xlsx",
-                path.read_bytes(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
+    response = _upload(
+        client,
+        fixture_files["iqc_dataset_a.xlsx"],
+        force=True,
+        name="../../../../etc/passwd.xlsx",
     )
     assert response.status_code == 201
     body = response.json()
     assert body["rawFile"]["originalFilename"] == "passwd.xlsx"
+    assert "/" not in body["rawFile"]["originalFilename"]
+
+
+def test_identical_file_is_not_parsed_twice(client, fixture_files: dict[str, Path]) -> None:
+    first = _upload(client, fixture_files["iqc_dataset_b.xlsx"]).json()
+    assert first["reused"] is False
+
+    second = _upload(client, fixture_files["iqc_dataset_b.xlsx"]).json()
+    assert second["reused"] is True
+    assert second["id"] == first["id"]  # the stored interpretation is reused
+
+    forced = _upload(client, fixture_files["iqc_dataset_b.xlsx"], force=True).json()
+    assert forced["reused"] is False and forced["id"] != first["id"]
+
+
+def test_interpretation_endpoint_shows_the_meaning(client, fixture_files: dict[str, Path]) -> None:
+    created = _upload(client, fixture_files["iqc_dataset_c.xlsx"]).json()
+    table_id = created["tables"][0]["id"]
+
+    view = client.get(
+        f"/api/imports/{created['id']}/tables/{table_id}/interpretation",
+        params={"maxRows": 3},
+    )
+    assert view.status_code == 200
+    body = view.json()
+    assert body["department"] == "IQC"
+    assert body["hierarchy"] == ["category", "subcategory", "metric"]
+    assert body["periods"][:2] == ["2025", "2026"]
+    assert {"W33", "W34", "Sep"} <= set(body["periods"])
+
+    row = body["rows"][0]
+    assert (row["category"], row["subcategory"], row["metric"]) == ("SEC", "Total", "PPM")
+    assert len(row["values"]) == len(body["periods"])
+    assert row["values"][0]["period"] == "2025"

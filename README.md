@@ -8,17 +8,24 @@ Import the departments' raw Excel files, read their structure automatically,
 render tables and charts, write Issue Reports, translate with AI, version the
 work and export PPT/PDF. Local, no login, SQLite.
 
-## Status — Sprint 0 (foundation)
+## Status — Sprint 0 (discovery, validation, architecture)
 
 | Area | State |
 | --- | --- |
-| Excel parser (regions, merges, periods, values, styles) | ✅ done |
-| Normalized table model | ✅ done |
+| Parser → Interpreter → Normalizer pipeline | ✅ done |
+| Normalized model (original + interpreted, hierarchy, periods) | ✅ done |
+| Department schemas (IQC / OQC / FIELD as configuration) | ✅ done |
 | SQLite schema + Alembic migration | ✅ done |
-| Import API (`/api/imports`) with upload validation | ✅ done |
-| Test suite + generated raw-data fixtures | ✅ 78 tests |
+| Upload API, content-hash reuse, semantic view endpoint | ✅ done |
+| Translation architecture (provider seam + cache + format rules) | ✅ contract + null provider |
+| Presentation model contract | ✅ defined |
+| Validation tooling for the real workbooks (report + ambiguities) | ✅ done |
+| Tests + generated raw-data fixtures | ✅ 130 tests |
 | Frontend shell (design system, routing, i18n en/pt-BR/ko) | ✅ scaffold |
-| Charts, Issue Report editor, versions, translation, exports | ⏳ next sprints |
+| Charts, Issue Report editor, versions CRUD, AI provider, exports | ⏳ next sprints |
+
+Read [`docs/sprint-0-report.md`](docs/sprint-0-report.md) for results,
+limitations, open decisions and risks.
 
 ## Quick start
 
@@ -36,31 +43,52 @@ npm install
 npm run dev                                     # http://localhost:5173
 ```
 
-Try the pipeline without the UI:
+## See the pipeline work
 
 ```bash
 cd backend
-.venv/bin/python -m tests.fixtures.build_fixtures /tmp/fx     # sample raw data
-curl -F department=IQC -F file=@/tmp/fx/iqc_w32.xlsx http://127.0.0.1:8000/api/imports
+# generate the sample raw data (provisional synthetic fixtures)
+.venv/bin/python -m tests.fixtures.build_fixtures /tmp/fx
+
+# RAW EXCEL → PARSER → INTERPRETER → NORMALIZED MODEL, printed as meaning
+.venv/bin/python -m app.tools.inspect_raw /tmp/fx/iqc_dataset_c.xlsx --department IQC
+
+# or through the API
+curl -F department=IQC -F file=@/tmp/fx/iqc_dataset_c.xlsx \
+     http://127.0.0.1:8000/api/uploads
 ```
+
+## Validate against the real workbooks
+
+Put the real IQC / OQC / FIELD files in `backend/tests/fixtures/real/`
+(gitignored), then:
+
+```bash
+cd backend && .venv/bin/python -m app.tools.validate_real
+```
+
+One report per workbook lands in `backend/reports/`: sheets, tables,
+`sourceRange`, merged ranges, periods, hierarchy, metrics, series, sizes,
+warnings and **ambiguities**, plus a summarized JSON of the normalized model.
 
 ## Tests
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q
+cd backend && .venv/bin/python -m pytest -q     # 130 passed, 2 skipped
 cd frontend && npm run build
 ```
 
 ## Documentation
 
-* [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layers, folders, how to run
-* [`docs/TABLE_MODEL.md`](docs/TABLE_MODEL.md) — the normalized table and how it is inferred
-* [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — SQLite schema and its rules
-* [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — endpoints and payloads
-* [`docs/DECISIONS.md`](docs/DECISIONS.md) — architecture decision log
+* [`docs/architecture.md`](docs/architecture.md) — layers, folders, data flow, how to run
+* [`docs/excel-parser.md`](docs/excel-parser.md) — how the parser identifies structure
+* [`docs/data-model.md`](docs/data-model.md) — Excel → internal model, SQLite schema
+* [`docs/api-contract.md`](docs/api-contract.md) — endpoints and payloads
+* [`docs/decisions.md`](docs/decisions.md) — architecture decision log
+* [`docs/sprint-0-report.md`](docs/sprint-0-report.md) — Sprint 0 report
 
 ## The one rule
 
-The next weekly file will not look like this week's: `W32` becomes `W33`,
-`Sep` appears, a row is added. Nothing in this system may depend on a cell
-position, a week number or a column count — see ADR-0002.
+Next week's file will not look like this week's: `W32` becomes `W33`, `Sep`
+appears, a row is added. Nothing in this system may depend on a cell position, a
+week number or a column count — see ADR-0002.

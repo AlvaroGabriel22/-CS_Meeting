@@ -22,6 +22,8 @@ class RawFileOut(CamelModel):
 
 class ImportOut(CamelModel):
     id: int
+    #: true when an identical file had already been parsed (no re-parse)
+    reused: bool = False
     department: DepartmentLiteral
     parser_version: str
     parsed_at: datetime

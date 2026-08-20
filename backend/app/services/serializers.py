@@ -38,7 +38,7 @@ def table_out(definition: TableDefinition) -> TableOut:
                 header_path=column.header_path or [],
                 label=column.label,
                 period=_period(column.period),
-                series=column.series,
+                series_type=column.series_type,
                 semantic=column.semantic or "unknown",
                 is_label_column=column.is_label_column,
                 width=column.width,
@@ -55,6 +55,7 @@ def table_out(definition: TableDefinition) -> TableOut:
                 category=row.category,
                 subcategory=row.subcategory,
                 metric=row.metric,
+                series_type=row.series_type,
                 semantic=row.semantic or "unknown",
                 is_header_row=row.is_header_row,
                 period=_period(row.period),
@@ -112,10 +113,11 @@ def table_summary_out(definition: TableDefinition) -> TableSummaryOut:
     )
 
 
-def import_out(data: DepartmentData) -> ImportOut:
+def import_out(data: DepartmentData, *, reused: bool = False) -> ImportOut:
     raw = data.raw_file
     return ImportOut(
         id=data.id,
+        reused=reused,
         department=data.department.value,
         parser_version=data.parser_version,
         parsed_at=data.parsed_at,

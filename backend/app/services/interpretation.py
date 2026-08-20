@@ -72,12 +72,12 @@ def _cell_index(table: TableOut) -> dict[tuple[int, int], Any]:
     return {(cell.row, cell.col): cell for cell in table.cells}
 
 
-def _value_entry(cell: Any, period_label: str, series: str | None = None) -> dict[str, Any]:
+def _value_entry(cell: Any, period_label: str, series_type: str | None = None) -> dict[str, Any]:
     if cell is None:
-        return {"period": period_label, "series": series, "type": "empty", "value": None}
+        return {"period": period_label, "seriesType": series_type, "type": "empty", "value": None}
     return {
         "period": period_label,
-        "series": series,
+        "seriesType": series_type,
         "type": cell.value_type,
         "raw": cell.raw_value,
         "value": cell.number,
@@ -92,16 +92,24 @@ def _rows_by_period_columns(table: TableOut, max_rows: int | None) -> list[dict[
     period_columns = [column for column in table.columns if column.period]
     out: list[dict[str, Any]] = []
     for row in table.rows:
-        if row.is_header_row or not (row.category or row.subcategory or row.metric or row.label):
+        if row.is_header_row or not (
+            row.category or row.subcategory or row.metric or row.series_type or row.label
+        ):
             continue
         out.append(
             {
                 "category": row.category,
                 "subcategory": row.subcategory,
-                "metric": row.metric or row.label,
+                "metric": row.metric,
+                "seriesType": row.series_type,
+                "label": row.label,
                 "sourceRow": row.source_row,
                 "values": [
-                    _value_entry(cells.get((row.index, column.index)), column.period.label, column.series)
+                    _value_entry(
+                        cells.get((row.index, column.index)),
+                        column.period.label,
+                        column.series_type,
+                    )
                     for column in period_columns
                 ],
             }

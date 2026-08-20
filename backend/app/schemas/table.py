@@ -53,7 +53,8 @@ class TableColumnOut(CamelModel):
     header_path: list[str] = []
     label: str = ""
     period: PeriodOut | None = None
-    series: str | None = None
+    #: "Target" / "Result" / "Plan" — never a metric (ADR-0012)
+    series_type: str | None = None
     semantic: SemanticLiteral = "unknown"
     is_label_column: bool = False
     width: float | None = None
@@ -68,6 +69,7 @@ class TableRowOut(CamelModel):
     category: str | None = None
     subcategory: str | None = None
     metric: str | None = None
+    series_type: str | None = None
     semantic: SemanticLiteral = "unknown"
     is_header_row: bool = False
     period: PeriodOut | None = None
