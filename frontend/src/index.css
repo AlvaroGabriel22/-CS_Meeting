@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------------ *
+ * Design tokens — white surface, dark blue as the voice, pastel blue as the
+ * accent.  Executive, calm, premium: depth comes from soft shadows, never
+ * from saturated colour or heavy gradients.
+ * ------------------------------------------------------------------------ */
+@theme {
+  --color-brand-950: #0a1a2f;
+  --color-brand-900: #0f2540;
+  --color-brand-800: #16324f;
+  --color-brand-700: #1e3a5f;
+  --color-brand-600: #2a4d7a;
+  --color-brand-500: #3a6499;
+  --color-brand-400: #6a8fbe;
+  --color-brand-300: #9dbadd;
+  --color-brand-200: #c7d9ef;
+  --color-brand-100: #e2ecf8;
+  --color-brand-50: #f2f6fc;
+
+  --color-ink-900: #14202e;
+  --color-ink-700: #33445a;
+  --color-ink-500: #6b7d94;
+  --color-ink-300: #a9b6c6;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f6f8fc;
+  --color-line: #e3eaf3;
+
+  --color-positive: #1d7a5f;
+  --color-warning: #b5761f;
+  --color-critical: #b3382f;
+
+  --radius-card: 1rem;
+
+  /* discreet 3D: two stacked shadows, no glow */
+  --shadow-soft: 0 1px 2px rgb(15 37 64 / 0.05), 0 8px 24px -12px rgb(15 37 64 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(15 37 64 / 0.06), 0 18px 40px -18px rgb(15 37 64 / 0.28);
+
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink-900);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* korean text needs a slightly looser line box */
+  :lang(ko) {
+    line-height: 1.65;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+  }
+}
+
+@layer components {
+  .surface-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-soft);
+    transition: box-shadow 220ms ease, transform 220ms ease;
+  }
+
+  .surface-card-interactive:hover {
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-2px);
+  }
+
+  /* controlled horizontal scroll: tables never break their structure */
+  .table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

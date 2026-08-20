@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "CS Meeting",
+    "tagline": "품질 경영 보고 시스템"
+  },
+  "nav": {
+    "home": "홈",
+    "settings": "설정",
+    "language": "언어"
+  },
+  "home": {
+    "title": "품질 회의",
+    "subtitle": "품질 부서 주간 경영 보고",
+    "openPresentation": "발표자료 열기",
+    "noPresentation": "발표자료 없음",
+    "createFirst": "원본 데이터를 가져와 시작하세요"
+  },
+  "department": {
+    "IQC": "IQC",
+    "OQC": "OQC",
+    "FIELD": "FIELD",
+    "IQC_full": "수입 품질 관리",
+    "OQC_full": "출하 품질 관리",
+    "FIELD_full": "필드 품질",
+    "graphs": "그래프",
+    "tables": "표",
+    "issueReports": "이슈 리포트",
+    "emptyGraphs": "원본 데이터를 가져오면 그래프가 표시됩니다.",
+    "emptyTables": "가져온 표가 여기에 표시됩니다.",
+    "emptyIssues": "이슈 리포트가 없습니다."
+  },
+  "card": {
+    "status": "상태",
+    "lastUpdate": "마지막 업데이트",
+    "issues": "이슈",
+    "period": "기간",
+    "never": "없음"
+  },
+  "status": {
+    "draft": "초안",
+    "ready": "완료",
+    "archived": "보관됨",
+    "trashed": "휴지통"
+  },
+  "settings": {
+    "title": "설정",
+    "chooseDepartment": "부서 선택",
+    "rawDataUpload": "원본 데이터 업로드",
+    "issueReport": "이슈 리포트",
+    "presentationManagement": "발표자료 관리",
+    "versions": "버전",
+    "translations": "번역",
+    "export": "내보내기"
+  },
+  "limit": {
+    "title": "발표자료 한도 도달",
+    "description": "시스템은 최대 {{max}}개의 활성 발표자료를 유지합니다. 보관, 교체 또는 삭제 후 계속하세요.",
+    "archive": "보관",
+    "replace": "교체",
+    "delete": "삭제",
+    "confirmDelete": "삭제를 확인하려면 발표자료 이름을 입력하세요"
+  },
+  "common": {
+    "loading": "불러오는 중…",
+    "error": "오류가 발생했습니다",
+    "retry": "다시 시도",
+    "cancel": "취소",
+    "save": "저장",
+    "saveVersion": "버전 저장",
+    "sourceRange": "원본 범위",
+    "parserVersion": "파서 버전"
+  }
+}

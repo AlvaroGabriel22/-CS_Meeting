@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "CS Meeting",
+    "tagline": "Quality executive presentations"
+  },
+  "nav": {
+    "home": "Home",
+    "settings": "Settings",
+    "language": "Language"
+  },
+  "home": {
+    "title": "Quality Meeting",
+    "subtitle": "Weekly executive presentations for the quality departments",
+    "openPresentation": "Open presentation",
+    "noPresentation": "No presentation yet",
+    "createFirst": "Import raw data to start"
+  },
+  "department": {
+    "IQC": "IQC",
+    "OQC": "OQC",
+    "FIELD": "FIELD",
+    "IQC_full": "Incoming Quality Control",
+    "OQC_full": "Outgoing Quality Control",
+    "FIELD_full": "Field Quality",
+    "graphs": "Graphs",
+    "tables": "Tables",
+    "issueReports": "Issue Reports",
+    "emptyGraphs": "Charts appear once raw data is imported.",
+    "emptyTables": "Imported tables appear here.",
+    "emptyIssues": "No issue report yet."
+  },
+  "card": {
+    "status": "Status",
+    "lastUpdate": "Last update",
+    "issues": "Issues",
+    "period": "Period",
+    "never": "Never"
+  },
+  "status": {
+    "draft": "Draft",
+    "ready": "Ready",
+    "archived": "Archived",
+    "trashed": "In trash"
+  },
+  "settings": {
+    "title": "Configuration",
+    "chooseDepartment": "Choose a department",
+    "rawDataUpload": "Raw Data Upload",
+    "issueReport": "Issue Report",
+    "presentationManagement": "Presentation Management",
+    "versions": "Versions",
+    "translations": "Translations",
+    "export": "Export"
+  },
+  "limit": {
+    "title": "Presentation limit reached",
+    "description": "The system keeps up to {{max}} active presentations. Archive, replace or delete one to continue.",
+    "archive": "Archive",
+    "replace": "Replace",
+    "delete": "Delete",
+    "confirmDelete": "Type the presentation name to confirm deletion"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saveVersion": "Save version",
+    "sourceRange": "Source range",
+    "parserVersion": "Parser version"
+  }
+}

@@ -1,0 +1,28 @@
+[project]
+name = "cs-meeting-backend"
+version = "0.1.0"
+description = "CS Meeting — executive quality presentations (IQC / OQC / FIELD)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.12",
+    "openpyxl>=3.1",
+    "python-pptx>=1.0",
+    "reportlab>=4.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

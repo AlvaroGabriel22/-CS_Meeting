@@ -1,0 +1,73 @@
+{
+  "app": {
+    "name": "CS Meeting",
+    "tagline": "Apresentações executivas de qualidade"
+  },
+  "nav": {
+    "home": "Início",
+    "settings": "Configurações",
+    "language": "Idioma"
+  },
+  "home": {
+    "title": "Reunião de Qualidade",
+    "subtitle": "Apresentações executivas semanais dos departamentos de qualidade",
+    "openPresentation": "Abrir apresentação",
+    "noPresentation": "Nenhuma apresentação ainda",
+    "createFirst": "Importe o raw data para começar"
+  },
+  "department": {
+    "IQC": "IQC",
+    "OQC": "OQC",
+    "FIELD": "FIELD",
+    "IQC_full": "Controle de Qualidade de Entrada",
+    "OQC_full": "Controle de Qualidade de Saída",
+    "FIELD_full": "Qualidade de Campo",
+    "graphs": "Gráficos",
+    "tables": "Tabelas",
+    "issueReports": "Issue Reports",
+    "emptyGraphs": "Os gráficos aparecem após a importação do raw data.",
+    "emptyTables": "As tabelas importadas aparecem aqui.",
+    "emptyIssues": "Nenhum issue report ainda."
+  },
+  "card": {
+    "status": "Status",
+    "lastUpdate": "Última atualização",
+    "issues": "Issues",
+    "period": "Período",
+    "never": "Nunca"
+  },
+  "status": {
+    "draft": "Rascunho",
+    "ready": "Pronta",
+    "archived": "Arquivada",
+    "trashed": "Na lixeira"
+  },
+  "settings": {
+    "title": "Configuração",
+    "chooseDepartment": "Escolha um departamento",
+    "rawDataUpload": "Upload de Raw Data",
+    "issueReport": "Issue Report",
+    "presentationManagement": "Gestão de Apresentações",
+    "versions": "Versões",
+    "translations": "Traduções",
+    "export": "Exportar"
+  },
+  "limit": {
+    "title": "Limite de apresentações atingido",
+    "description": "O sistema mantém até {{max}} apresentações ativas. Arquive, substitua ou exclua uma para continuar.",
+    "archive": "Arquivar",
+    "replace": "Substituir",
+    "delete": "Excluir",
+    "confirmDelete": "Digite o nome da apresentação para confirmar a exclusão"
+  },
+  "common": {
+    "loading": "Carregando…",
+    "error": "Algo deu errado",
+    "retry": "Tentar novamente",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "saveVersion": "Salvar versão",
+    "sourceRange": "Intervalo de origem",
+    "parserVersion": "Versão do parser"
+  }
+}
