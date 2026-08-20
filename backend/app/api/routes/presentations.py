@@ -10,8 +10,9 @@ from app.core.errors import NotFound
 from app.db.base import get_session
 from app.db.models import Department, Presentation
 from app.schemas.imports import ImportOut
-from app.schemas.presentation import PresentationOut, PresentationVersionOut
+from app.schemas.presentation import PresentationOut, PresentationVersionOut, VersionViewOut
 from app.services import presentation_service, serializers
+from app.services.render_model import build_table_view
 
 router = APIRouter(prefix="/api", tags=["presentations"])
 
@@ -64,3 +65,26 @@ def get_version_imports(
     """The data this snapshot froze — exactly what it showed when it was saved."""
     version = presentation_service.get_version(session, version_id)
     return [serializers.import_out(data, version=version) for data in version.imports]
+
+
+@router.get("/versions/{version_id}/view", response_model=VersionViewOut)
+def get_version_view(version_id: int, session: Session = Depends(get_session)) -> VersionViewOut:
+    """Render a snapshot exactly as it was saved.
+
+    A later upload creates a new version; this one keeps showing the periods and
+    the values it froze.
+    """
+    version = presentation_service.get_version(session, version_id)
+    tables = [
+        build_table_view(serializers.table_out(definition))
+        for data in version.imports
+        for definition in sorted(data.tables, key=lambda item: item.order_index)
+    ]
+    department = version.imports[0].department.value if version.imports else "IQC"
+    return VersionViewOut.model_validate(
+        {
+            "version": serializers.version_out(version).model_dump(by_alias=True),
+            "department": department,
+            "tables": tables,
+        }
+    )

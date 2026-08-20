@@ -72,6 +72,10 @@ class TableRowOut(CamelModel):
     subcategory: str | None = None
     metric: str | None = None
     series_type: str | None = None
+    #: index of the label block this row belongs to (a group and its metrics)
+    block: int = 0
+    #: fields the parser inferred rather than read ("category", "metric")
+    inferred: list[str] = []
     semantic: SemanticLiteral = "unknown"
     is_header_row: bool = False
     period: PeriodOut | None = None
@@ -149,3 +153,86 @@ class InterpretationOut(CamelModel):
     periods: list[str] = []
     rows: list[dict[str, Any]] = []
     warnings: list[str] = []
+
+
+# --------------------------------------------------------------------------- #
+# Render model — the table prepared for display (Sprint 2)
+# --------------------------------------------------------------------------- #
+CellKindLiteral = Literal["corner", "period", "label", "value", "empty"]
+
+
+class RenderCellOut(CamelModel):
+    """One drawn cell.  Merged ranges arrive as spans; covered cells are absent."""
+
+    row: int
+    col: int
+    row_span: int = 1
+    col_span: int = 1
+    kind: CellKindLiteral
+    semantic: str = "unknown"
+    #: already formatted for reading ("20,970"); never a re-computed value
+    text: str = ""
+    value: float | None = None
+    value_type: str = "empty"
+    align: str = "left"
+    bold: bool = False
+    fill_color: str | None = None
+    text_color: str | None = None
+    borders: list[str] = []
+    wrap: bool = False
+    #: indentation level inside the label column, from the hierarchy
+    indent: int = 0
+    is_headline: bool = False
+    #: what the parser inferred for a cell the workbook leaves empty; the UI
+    #: must show it as clearly distinct from the file's own content
+    inferred_text: str | None = None
+    source: str | None = None
+    merged_range: str | None = None
+
+
+class RenderColumnOut(CamelModel):
+    index: int
+    kind: Literal["label", "period"]
+    label: str = ""
+    period: PeriodOut | None = None
+    series_type: str | None = None
+    source_column: str | None = None
+    width: float | None = None
+
+
+class RenderRowOut(CamelModel):
+    index: int
+    kind: Literal["header", "data"]
+    semantic: str = "unknown"
+    category: str | None = None
+    subcategory: str | None = None
+    metric: str | None = None
+    series_type: str | None = None
+    block: int = 0
+    #: the row carrying the block's own figure (no metric label of its own)
+    is_headline: bool = False
+    depth: int = 0
+    inferred: list[str] = []
+    source_row: int | None = None
+    height: float | None = None
+    cells: list[RenderCellOut] = []
+
+
+class TableViewOut(CamelModel):
+    """A normalized table, ready to draw."""
+
+    id: int | None = None
+    title: str | None = None
+    department: str | None = None
+    sheet: str
+    source_range: str
+    hierarchy: list[str] = []
+    header_row_count: int = 0
+    label_column_count: int = 0
+    column_count: int = 0
+    row_count: int = 0
+    periods: list[PeriodOut] = []
+    columns: list[RenderColumnOut] = []
+    rows: list[RenderRowOut] = []
+    warnings: list[str] = []
+    meta: dict[str, Any] = {}

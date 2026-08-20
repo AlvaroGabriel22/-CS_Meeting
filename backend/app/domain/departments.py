@@ -65,6 +65,11 @@ class DepartmentSchema:
     #: True while the structure comes from the specification and no real
     #: workbook has been seen yet — such a schema must not drive decisions
     provisional: bool = False
+    #: which direction is good for a metric: "lower_is_better" for defects and
+    #: rates, "higher_is_better" for volumes that should grow, absent when the
+    #: department has not said.  Only used to colour a movement; never to
+    #: change a number (ADR-0022).
+    polarity: dict[str, str] = field(default_factory=dict)
     notes: str = ""
 
     _index: dict[str, frozenset[str]] = field(default_factory=dict, repr=False, compare=False)
@@ -77,6 +82,15 @@ class DepartmentSchema:
 
     def is_metric(self, text: str) -> bool:
         return canonical(text) in {canonical(item) for item in self.metrics}
+
+    def metric_polarity(self, metric: str | None) -> str | None:
+        if not metric:
+            return None
+        wanted = canonical(metric)
+        for name, direction in self.polarity.items():
+            if canonical(name) == wanted:
+                return direction
+        return None
 
 
 #: metrics that appear across every department — used when no schema is known
@@ -133,6 +147,13 @@ DEPARTMENT_SCHEMAS: dict[str, DepartmentSchema] = {
             numerator="Rej. Lot", denominator="Insp. Lot", scale=1_000_000.0
         ),
         protected_terms=("PPM", "IQC", "TTL", "SEC", "TNP", "SKD", "CKD"),
+        polarity={
+            # more defects and a higher defect rate are worse; the number of
+            # inspected lots is a volume, neither good nor bad on its own
+            "PPM": "lower_is_better",
+            "Rej. Lot": "lower_is_better",
+            "Insp. Lot": "neutral",
+        },
         notes="Three tables side by side; the PPM row is never labelled.",
     ),
     # --- OQC / FIELD: no real workbook yet --------------------------------- #

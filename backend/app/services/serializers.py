@@ -58,6 +58,8 @@ def table_out(definition: TableDefinition) -> TableOut:
                 subcategory=row.subcategory,
                 metric=row.metric,
                 series_type=row.series_type,
+                block=row.block or 0,
+                inferred=list(row.inferred or []),
                 semantic=row.semantic or "unknown",
                 is_header_row=row.is_header_row,
                 period=_period(row.period),

@@ -27,7 +27,8 @@
     "issueReports": "이슈 리포트",
     "emptyGraphs": "원본 데이터를 가져오면 그래프가 표시됩니다.",
     "emptyTables": "가져온 표가 여기에 표시됩니다.",
-    "emptyIssues": "이슈 리포트가 없습니다."
+    "emptyIssues": "이슈 리포트가 없습니다.",
+    "showingVersion": "버전 {{version}} · {{label}}"
   },
   "card": {
     "status": "상태",
@@ -92,5 +93,33 @@
     "periodsShort": "기간",
     "saved": "버전 {{version}}(으)로 저장됨",
     "open": "원본 데이터 가져오기"
+  },
+  "analytics": {
+    "table": "표",
+    "metric": "지표",
+    "allMetrics": "모든 지표",
+    "periodA": "기간 A",
+    "periodB": "기간 B",
+    "row": "행",
+    "delta": "변화",
+    "periodComparison": "{{b}} 대 {{a}}",
+    "versionComparison": "다른 버전과 비교",
+    "compareWith": "버전",
+    "pickVersion": "선택…",
+    "orderHint": "파일 열 순서와 시간 순서 전환",
+    "chart": {
+      "line": "선형",
+      "bar": "막대"
+    },
+    "order": {
+      "file": "파일 순서",
+      "chronological": "시간 순"
+    },
+    "status": {
+      "ok": "",
+      "missing_a": "A 값 없음",
+      "missing_b": "B 값 없음",
+      "undefined_percent": "백분율 없음: 기준값이 0"
+    }
   }
 }

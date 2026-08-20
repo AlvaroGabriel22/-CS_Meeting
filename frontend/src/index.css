@@ -26,6 +26,8 @@
   --color-surface: #ffffff;
   --color-canvas: #f6f8fc;
   --color-line: #e3eaf3;
+  /* the rule the workbook's own borders are drawn with */
+  --color-line-strong: #b7c4d6;
 
   --color-positive: #1d7a5f;
   --color-warning: #b5761f;
@@ -80,6 +82,28 @@
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
+  }
+
+  /* a wide table scrolls, it is never compressed: the content decides the
+     minimum width, so numbers never wrap and columns never collapse */
+  .table-scroll > table {
+    min-width: max-content;
+  }
+
+  /* on narrow screens the identification column stays in view while the
+     periods scroll underneath it */
+  @media (max-width: 1024px) {
+    .table-scroll [data-sticky="true"] {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      background-color: var(--color-surface);
+    }
+
+    .table-scroll thead [data-sticky="true"] {
+      background-color: var(--color-brand-700);
+      z-index: 3;
+    }
   }
 }
 

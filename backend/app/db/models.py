@@ -252,6 +252,10 @@ class TableRow(Base):
     subcategory: Mapped[str | None] = mapped_column(String(160))
     metric: Mapped[str | None] = mapped_column(String(160))
     series_type: Mapped[str | None] = mapped_column(String(60))
+    #: label block (a group and the metrics under it)
+    block: Mapped[int] = mapped_column(Integer, default=0)
+    #: what the parser inferred rather than read
+    inferred: Mapped[list] = mapped_column(JSON, default=list)
     semantic: Mapped[str] = mapped_column(String(16), default="unknown")
     is_header_row: Mapped[bool] = mapped_column(Boolean, default=False)
     period: Mapped[dict | None] = mapped_column(JSON)

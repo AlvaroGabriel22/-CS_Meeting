@@ -8,7 +8,7 @@ Import the departments' raw Excel files, read their structure automatically,
 render tables and charts, write Issue Reports, translate with AI, version the
 work and export PPT/PDF. Local, no login, SQLite.
 
-## Status — Sprint 1 (IQC real file + dynamic period engine)
+## Status — Sprint 2 (IQC rendering with structural fidelity)
 
 | Area | State |
 | --- | --- |
@@ -25,11 +25,13 @@ work and export PPT/PDF. Local, no login, SQLite.
 | **PPM identified without the word, verified arithmetically** | ✅ 87/87 |
 | **Version snapshots** (append-only, raw file kept) | ✅ done |
 | **IQC import screen** (upload → preview → save version) | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 184 tests |
-| Table rendering, charts, Issue Report editor, AI provider, exports | ⏳ next sprints |
+| **Render model** (merges as spans, hierarchy as depth, borders from the file) | ✅ done |
+| **IQC tables rendered in the browser** from the saved snapshot | ✅ done |
+| Tests + generated raw-data fixtures | ✅ 212 tests |
+| Charts, Issue Report editor, AI provider, exports | ⏳ next sprints |
 | OQC / FIELD structures | ⏳ waiting for the real files |
 
-Read [`docs/sprint-1-report.md`](docs/sprint-1-report.md) for the latest
+Read [`docs/sprint-2-report.md`](docs/sprint-2-report.md) for the latest
 results, limitations and next steps.
 
 ## Quick start
@@ -51,11 +53,13 @@ npm run dev                                     # http://localhost:5173
 VITE_API_PROXY=http://127.0.0.1:8100 npm run dev
 ```
 
-## Import IQC in the browser
+## Import and read IQC in the browser
 
-`http://localhost:5173/department/IQC/import` — choose the workbook, read what
-the parser understood (tables, periods, hierarchy, warnings), then save the
-version.
+* `http://localhost:5173/department/IQC/import` — choose the workbook, read what
+  the parser understood (tables, periods, hierarchy, warnings), save the version.
+* `http://localhost:5173/department/IQC` — the saved snapshot rendered:
+  `TTL`, `SEC` and `TNP` with their merged groups, indented sub-groups and the
+  period axis the file happens to hold.
 
 ## See the pipeline work
 
@@ -88,7 +92,7 @@ warnings and **ambiguities**, plus a summarized JSON of the normalized model.
 ## Tests
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q     # 184 passed
+cd backend && .venv/bin/python -m pytest -q     # 212 passed
 cd frontend && npm run build
 ```
 
@@ -103,6 +107,7 @@ cd frontend && npm run build
 * [`docs/decisions.md`](docs/decisions.md) — architecture decision log
 * [`docs/sprint-0-report.md`](docs/sprint-0-report.md) — Sprint 0 report
 * [`docs/sprint-1-report.md`](docs/sprint-1-report.md) — Sprint 1 report
+* [`docs/sprint-2-report.md`](docs/sprint-2-report.md) — Sprint 2 report
 
 ## The one rule
 

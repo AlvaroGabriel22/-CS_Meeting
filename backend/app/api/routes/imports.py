@@ -10,10 +10,11 @@ from app.core.errors import NotFound
 from app.db.base import get_session
 from app.db.models import Department, DepartmentData, TableDefinition
 from app.schemas.imports import ImportOut
-from app.schemas.table import InterpretationOut, TableOut
+from app.schemas.table import InterpretationOut, TableOut, TableViewOut
 from app.services import presentation_service, serializers
 from app.services.import_service import import_raw_data
 from app.services.interpretation import interpretation_view
+from app.services.render_model import build_table_view
 
 router = APIRouter(prefix="/api", tags=["raw data"])
 
@@ -125,3 +126,16 @@ def get_interpretation(
     """
     table = serializers.table_out(_table_or_404(session, import_id, table_id))
     return InterpretationOut.model_validate(interpretation_view(table, max_rows=max_rows))
+
+
+@router.get("/imports/{import_id}/tables/{table_id}/view", response_model=TableViewOut)
+def get_table_view(
+    import_id: int, table_id: int, session: Session = Depends(get_session)
+) -> TableViewOut:
+    """The table prepared for display: merges as spans, hierarchy as depth.
+
+    The UI draws this as it comes — it never re-derives structure from rows and
+    columns, and no period is known to it in advance.
+    """
+    table = serializers.table_out(_table_or_404(session, import_id, table_id))
+    return TableViewOut.model_validate(build_table_view(table))

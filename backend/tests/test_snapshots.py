@@ -81,7 +81,9 @@ def test_each_upload_adds_a_version_and_never_rewrites_the_previous(
 
     # version 1 still shows what it showed when it was saved
     old = client.get(f"/api/versions/{first['versionId']}").json()
-    assert old["summary"]["periodLabels"] == ["'25", "'26", "1Q", "2Q", "3Q", "Aug", "Sep", "Oct"]
+    assert old["summary"]["periodLabels"] == [
+        "'25", "'26", "1Q", "2Q", "3Q", "4Q", "Aug", "Sep", "Oct",
+    ]
     new = client.get(f"/api/versions/{third['versionId']}").json()
     assert "4Q" in new["summary"]["periodLabels"] and "W48" in new["summary"]["periodLabels"]
     assert new["parentVersionId"] == second["versionId"]
@@ -129,3 +131,59 @@ def test_snapshot_service_links_the_import_without_copying_it(session, iqc_real:
     assert [item.id for item in stored.imports] == [data.id]  # referenced, not copied
     assert stored.summary["tableNames"] == ["TTL", "SEC", "TNP"]
     assert stored.label == "Aug"  # named after the last period in the file
+
+
+# --------------------------------------------------------------------------- #
+# Sprint 2 — a snapshot renders exactly what it froze
+# --------------------------------------------------------------------------- #
+def test_version_view_renders_the_snapshot(client, iqc_real: Path) -> None:
+    created = _upload(client, iqc_real).json()
+    view = client.get(f"/api/versions/{created['versionId']}/view")
+    assert view.status_code == 200
+    body = view.json()
+
+    assert body["department"] == "IQC"
+    assert body["version"]["id"] == created["versionId"]
+    assert [table["title"] for table in body["tables"]] == ["TTL", "SEC", "TNP"]
+
+    table = body["tables"][0]
+    assert [period["label"] for period in table["periods"]] == [
+        "'25", "'26", "1Q", "2Q", "3Q", "Aug",
+    ]
+    assert table["labelColumnCount"] == 2
+    assert any(cell["rowSpan"] == 9 for row in table["rows"] for cell in row["cells"])
+    drawn = {cell["text"].upper() for row in table["rows"] for cell in row["cells"]}
+    assert "PPM" not in drawn
+
+
+def test_an_older_snapshot_keeps_rendering_its_own_periods(client, iqc_evolution) -> None:
+    """Uploading next month's file must not rewrite what v1 shows."""
+    first = _upload(client, iqc_evolution["a"]).json()
+    later = _upload(client, iqc_evolution["d"]).json()
+
+    old = client.get(f"/api/versions/{first['versionId']}/view").json()
+    new = client.get(f"/api/versions/{later['versionId']}/view").json()
+
+    assert [p["label"] for p in old["tables"][0]["periods"]] == [
+        "'25", "'26", "1Q", "2Q", "3Q", "Aug",
+    ]
+    assert [p["label"] for p in new["tables"][0]["periods"]] == [
+        "'25", "'26", "1Q", "2Q", "3Q", "4Q", "Nov", "Dec",
+    ]
+    # same structure, different period axis — one renderer, two snapshots
+    assert old["tables"][0]["hierarchy"] == new["tables"][0]["hierarchy"]
+    assert old["tables"][0]["rowCount"] == new["tables"][0]["rowCount"]
+
+
+def test_preview_and_saved_version_use_the_same_model(client, iqc_evolution) -> None:
+    preview = _upload(client, iqc_evolution["c"], create_version=False).json()
+    table_id = preview["tables"][0]["id"]
+    from_import = client.get(
+        f"/api/imports/{preview['id']}/tables/{table_id}/view"
+    ).json()
+
+    saved = _upload(client, iqc_evolution["c"], create_version=True).json()
+    from_version = client.get(f"/api/versions/{saved['versionId']}/view").json()["tables"][0]
+
+    assert from_import["rows"] == from_version["rows"]
+    assert from_import["periods"] == from_version["periods"]

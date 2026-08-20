@@ -185,6 +185,8 @@ def persist_parsed_workbook(
                 subcategory=row.subcategory,
                 metric=row.metric,
                 series_type=row.series_type,
+                block=row.block,
+                inferred=list(row.inferred),
                 semantic=row.semantic.value,
                 is_header_row=row.is_header_row,
                 period=row.period.to_dict() if row.period else None,

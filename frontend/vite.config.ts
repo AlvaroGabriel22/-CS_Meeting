@@ -14,4 +14,16 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: apiTarget, changeOrigin: true } },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // the charting library is heavy and changes rarely: give it its own
+        // chunk so it is cached independently of the application code
+        manualChunks: {
+          charts: ['recharts'],
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 })

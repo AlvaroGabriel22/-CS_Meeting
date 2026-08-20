@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from .common import CamelModel
 from .imports import DepartmentLiteral, ImportOut
-from .table import TableSummaryOut
+from .table import TableSummaryOut, TableViewOut
 
 PresentationStatusLiteral = Literal["draft", "ready", "archived", "trashed"]
 VersionStatusLiteral = Literal["draft", "published"]
@@ -149,3 +149,11 @@ class PresentationLimitOut(CamelModel):
     limit: int
     active_count: int
     candidates: list[PresentationOut] = []
+
+
+class VersionViewOut(CamelModel):
+    """Everything needed to render one snapshot: the version and its tables."""
+
+    version: "PresentationVersionOut"
+    department: DepartmentLiteral
+    tables: list[TableViewOut] = []

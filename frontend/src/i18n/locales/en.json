@@ -27,7 +27,8 @@
     "issueReports": "Issue Reports",
     "emptyGraphs": "Charts appear once raw data is imported.",
     "emptyTables": "Imported tables appear here.",
-    "emptyIssues": "No issue report yet."
+    "emptyIssues": "No issue report yet.",
+    "showingVersion": "Version {{version}} · {{label}}"
   },
   "card": {
     "status": "Status",
@@ -92,5 +93,33 @@
     "periodsShort": "Periods",
     "saved": "Saved as version {{version}}",
     "open": "Import raw data"
+  },
+  "analytics": {
+    "table": "Table",
+    "metric": "Metric",
+    "allMetrics": "All metrics",
+    "periodA": "Period A",
+    "periodB": "Period B",
+    "row": "Row",
+    "delta": "Delta",
+    "periodComparison": "{{b}} compared with {{a}}",
+    "versionComparison": "Compare with another version",
+    "compareWith": "Version",
+    "pickVersion": "Choose…",
+    "orderHint": "Switch between the file's column order and chronological order",
+    "chart": {
+      "line": "Line",
+      "bar": "Bars"
+    },
+    "order": {
+      "file": "File order",
+      "chronological": "Chronological"
+    },
+    "status": {
+      "ok": "",
+      "missing_a": "no value in A",
+      "missing_b": "no value in B",
+      "undefined_percent": "no percentage: baseline is zero"
+    }
   }
 }

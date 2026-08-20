@@ -271,3 +271,61 @@ invited exactly the confusion this ADR closes.
 **Consequences.** The change touched the model, the vocabulary, the engine, the
 wire contract and the frontend types. `sortKey` was deliberately left as
 `YYYY-Qn` so ordering across generations of the file stays stable.
+
+---
+
+## ADR-0018 — The UI receives a render model, not a table to figure out
+
+**Decision (Sprint 2).** A new layer, `app/services/render_model.py`, turns a
+`NormalizedTable` into a grid the frontend draws as it comes:
+
+* merged ranges become `rowSpan`/`colSpan` on a single cell, and the
+  coordinates they cover are **absent** from the payload;
+* every cell carries its own alignment, weight, fill and **the exact border
+  sides the workbook draws** — nothing added, nothing removed;
+* rows carry `depth` (indentation) and `isHeadline`, derived from the hierarchy
+  the parser found;
+* the period axis is whatever the model holds, in the file's order.
+
+**Why.** Structure is interpretation, and interpretation belongs to the
+backend. A React component that decides where a group starts would be a second
+parser — one that drifts from the first.
+
+**Consequences.** `IQCTable` and `IQCCell` contain no month, quarter or week
+name, and no rule about SKD, CKD or PPM. The same components draw every
+generation of the file. New endpoints:
+`GET /api/imports/{id}/tables/{tid}/view` and `GET /api/versions/{id}/view`.
+
+---
+
+## ADR-0019 — The headline row shows its figure, never an invented label
+
+**Decision (Sprint 2).** In the IQC tables the first row of each block carries
+the block's derived figure (PPM) and no metric name of its own. The renderer
+keeps that cell **empty**, exactly as the workbook has it. `PPM` stays in the
+model as `meta.headlineMetric` and on the row as `metric`, for charts, exports
+and search — it is never drawn as a row label.
+
+The workbook draws only vertical rules around that cell (no top or bottom
+border): the renderer reproduces that too, so no box is closed around an
+intentional emptiness.
+
+**Why.** Writing "PPM" into the table would add content the file does not have
+and would push every block one row taller than the original.
+
+---
+
+## ADR-0020 — Inferred labels are shown, but never as the file's own content
+
+**Decision (Sprint 2).** The first block of each IQC table has no name in the
+workbook; the parser reads it as `Total`. The render model exposes it as
+`inferredText` on an otherwise empty cell, and the UI draws it in a muted
+italic with a tooltip explaining that it was read from the structure.
+
+**Why.** Two failure modes had to be avoided: an unnamed block (unreadable) and
+a fabricated label indistinguishable from real content (dishonest). Marking it
+keeps both the meaning and the provenance.
+
+**Reversibility.** `inferredText` is a separate field: a UI that wants strict
+fidelity simply ignores it, and the day the workbook writes `Total` itself the
+value arrives as ordinary `text`.

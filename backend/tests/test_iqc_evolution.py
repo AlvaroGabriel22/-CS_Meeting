@@ -17,7 +17,7 @@ from app.excel import period_engine as PE
 EXPECTED_PERIODS = {
     "a": ["'25", "'26", "1Q", "2Q", "3Q", "Aug"],
     "b": ["'25", "'26", "1Q", "2Q", "3Q", "Aug", "Sep"],
-    "c": ["'25", "'26", "1Q", "2Q", "3Q", "Aug", "Sep", "Oct"],
+    "c": ["'25", "'26", "1Q", "2Q", "3Q", "4Q", "Aug", "Sep", "Oct"],
     "d": ["'25", "'26", "1Q", "2Q", "3Q", "4Q", "Nov", "Dec"],
     "e": ["'25", "'26", "1Q", "2Q", "3Q", "4Q", "Nov", "Dec", "W48"],
 }
@@ -47,8 +47,8 @@ def test_18_new_period_columns_are_picked_up(iqc_evolution, key: str, expected: 
 
 
 def test_19_a_closed_quarter_is_understood(iqc_evolution) -> None:
-    """Fixture D replaced the running months with 4Q, Nov and Dec."""
-    before = _table(iqc_evolution, "c")
+    """Fixture D replaced the running months with Nov and Dec under 4Q."""
+    before = _table(iqc_evolution, "b")
     after = _table(iqc_evolution, "d")
 
     quarters_before = [p.quarter for p in before.periods if p.kind.value == "quarter"]

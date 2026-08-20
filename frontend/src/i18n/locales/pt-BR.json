@@ -27,7 +27,8 @@
     "issueReports": "Issue Reports",
     "emptyGraphs": "Os gráficos aparecem após a importação do raw data.",
     "emptyTables": "As tabelas importadas aparecem aqui.",
-    "emptyIssues": "Nenhum issue report ainda."
+    "emptyIssues": "Nenhum issue report ainda.",
+    "showingVersion": "Versão {{version}} · {{label}}"
   },
   "card": {
     "status": "Status",
@@ -92,5 +93,33 @@
     "periodsShort": "Períodos",
     "saved": "Salvo como versão {{version}}",
     "open": "Importar raw data"
+  },
+  "analytics": {
+    "table": "Tabela",
+    "metric": "Métrica",
+    "allMetrics": "Todas as métricas",
+    "periodA": "Período A",
+    "periodB": "Período B",
+    "row": "Linha",
+    "delta": "Variação",
+    "periodComparison": "{{b}} comparado com {{a}}",
+    "versionComparison": "Comparar com outra versão",
+    "compareWith": "Versão",
+    "pickVersion": "Escolher…",
+    "orderHint": "Alternar entre a ordem das colunas do arquivo e a ordem cronológica",
+    "chart": {
+      "line": "Linha",
+      "bar": "Barras"
+    },
+    "order": {
+      "file": "Ordem do arquivo",
+      "chronological": "Cronológica"
+    },
+    "status": {
+      "ok": "",
+      "missing_a": "sem valor em A",
+      "missing_b": "sem valor em B",
+      "undefined_percent": "sem percentual: base é zero"
+    }
   }
 }

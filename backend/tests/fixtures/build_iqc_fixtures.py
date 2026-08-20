@@ -9,7 +9,7 @@ argument instead of a second opaque file:
 ======  ===========================================================
 A       ``'25 | '26 | 1Q | 2Q | 3Q | Aug``          (today)
 B       ``… | Aug | Sep``                            (a month later)
-C       ``… | Aug | Sep | Oct``                      (two months later)
+C       ``… | 3Q | 4Q | Aug | Sep | Oct``          (a quarter opens beside its months)
 D       ``'25 | '26 | 1Q | 2Q | 3Q | 4Q | Nov | Dec``(the quarter closed)
 E       ``… | Nov | Dec | W48``                      (weeks appear)
 ======  ===========================================================
@@ -49,7 +49,9 @@ CYCLE = ("Rej. Lot", "Insp. Lot")
 
 PERIODS_A = ("'25", "'26", "1Q", "2Q", "3Q", "Aug")
 PERIODS_B = ("'25", "'26", "1Q", "2Q", "3Q", "Aug", "Sep")
-PERIODS_C = ("'25", "'26", "1Q", "2Q", "3Q", "Aug", "Sep", "Oct")
+#: dataset C keeps the running months *and* shows 4Q, so a quarter and the
+#: months inside it live side by side (Sprint 3 §12)
+PERIODS_C = ("'25", "'26", "1Q", "2Q", "3Q", "4Q", "Aug", "Sep", "Oct")
 PERIODS_D = ("'25", "'26", "1Q", "2Q", "3Q", "4Q", "Nov", "Dec")
 PERIODS_E = ("'25", "'26", "1Q", "2Q", "3Q", "4Q", "Nov", "Dec", "W48")
 

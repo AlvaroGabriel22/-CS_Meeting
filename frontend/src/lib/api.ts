@@ -6,9 +6,23 @@ import type {
   NormalizedTable,
   Presentation,
   PresentationVersion,
+  ComparisonResponse,
+  SeriesOrder,
+  SeriesResponse,
+  TableView,
+  VersionView,
 } from '@/types/api'
 
 const BASE = import.meta.env.VITE_API_BASE ?? ''
+
+function query(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') search.set(key, String(value))
+  }
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE}${path}`, init)
@@ -58,4 +72,43 @@ export const api = {
 
   listVersions: (presentationId: number) =>
     request<PresentationVersion[]>(`/api/presentations/${presentationId}/versions`),
+
+  /** One table, ready to draw (merges as spans, hierarchy as depth). */
+  getTableView: (importId: number, tableId: number) =>
+    request<TableView>(`/api/imports/${importId}/tables/${tableId}/view`),
+
+  /** A whole snapshot, rendered exactly as it was saved. */
+  getVersionView: (versionId: number) =>
+    request<VersionView>(`/api/versions/${versionId}/view`),
+
+  /** Chart-ready series of one snapshot, plus the selector options it offers. */
+  getSeries: (
+    versionId: number,
+    params: {
+      table?: string
+      category?: string
+      subcategory?: string
+      metric?: string
+      order?: SeriesOrder
+    } = {},
+  ) => request<SeriesResponse>(`/api/versions/${versionId}/analytics/series${query(params)}`),
+
+  /** Two periods of one snapshot. */
+  comparePeriods: (
+    versionId: number,
+    params: { periodA: string; periodB: string; table?: string; metric?: string },
+  ) =>
+    request<ComparisonResponse>(
+      `/api/versions/${versionId}/analytics/comparison${query(params)}`,
+    ),
+
+  /** The same period in two snapshots. */
+  compareVersions: (
+    versionId: number,
+    otherId: number,
+    params: { period: string; table?: string; metric?: string },
+  ) =>
+    request<ComparisonResponse>(
+      `/api/versions/${versionId}/analytics/versus/${otherId}${query(params)}`,
+    ),
 }

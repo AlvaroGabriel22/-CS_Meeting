@@ -357,3 +357,209 @@ export interface PresentationModel {
   assets: Asset[]
   language: Language
 }
+
+/* -------------------------------------------------------------------------- *
+ * Render model (Sprint 2) — the table already prepared for display.
+ * The UI draws this as it comes: merges arrive as spans, hierarchy as depth,
+ * periods as whatever the file holds.  No structure is re-derived here.
+ * -------------------------------------------------------------------------- */
+export type CellKind = 'corner' | 'period' | 'label' | 'value' | 'empty'
+export type BorderSide = 'top' | 'right' | 'bottom' | 'left'
+
+export interface RenderCell {
+  row: number
+  col: number
+  rowSpan: number
+  colSpan: number
+  kind: CellKind
+  semantic: string
+  /** already formatted for reading — never recomputed on the client */
+  text: string
+  value: number | null
+  valueType: ValueType
+  align: string
+  bold: boolean
+  fillColor: string | null
+  textColor: string | null
+  borders: BorderSide[]
+  wrap: boolean
+  indent: number
+  isHeadline: boolean
+  /** what the parser inferred for a cell the workbook leaves empty */
+  inferredText: string | null
+  source: string | null
+  mergedRange: string | null
+}
+
+export interface RenderColumn {
+  index: number
+  kind: 'label' | 'period'
+  label: string
+  period: Period | null
+  seriesType: string | null
+  sourceColumn: string | null
+  width: number | null
+}
+
+export interface RenderRow {
+  index: number
+  kind: 'header' | 'data'
+  semantic: string
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  seriesType: string | null
+  block: number
+  isHeadline: boolean
+  depth: number
+  inferred: string[]
+  sourceRow: number | null
+  height: number | null
+  cells: RenderCell[]
+}
+
+export interface TableView {
+  id: number | null
+  title: string | null
+  department: Department | null
+  sheet: string
+  sourceRange: string
+  hierarchy: string[]
+  headerRowCount: number
+  labelColumnCount: number
+  columnCount: number
+  rowCount: number
+  periods: Period[]
+  columns: RenderColumn[]
+  rows: RenderRow[]
+  warnings: string[]
+  meta: {
+    reportingYear?: number | null
+    blocks?: number | null
+    /** metadata only — never drawn as a label (the value *is* the metric) */
+    headlineMetric?: string | null
+    headlineConfirmed?: boolean
+  }
+}
+
+export interface VersionView {
+  version: PresentationVersion
+  department: Department
+  tables: TableView[]
+}
+
+/* -------------------------------------------------------------------------- *
+ * Analytics (Sprint 3) — charts, period comparison, version comparison.
+ * Everything is expressed in model terms; the origin cell travels along so any
+ * number on a chart can be traced back to the workbook.
+ * -------------------------------------------------------------------------- */
+export type Direction = 'up' | 'down' | 'flat' | 'unknown'
+export type Severity = 'positive' | 'negative' | 'neutral' | 'unknown'
+export type DeltaStatus = 'ok' | 'missing_a' | 'missing_b' | 'undefined_percent'
+export type SeriesOrder = 'file' | 'chronological'
+
+export interface SeriesSelector {
+  table: string | null
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  seriesType: string | null
+}
+
+export interface SeriesPoint {
+  period: Period
+  value: number | null
+  display: string | null
+  valueType: ValueType
+  /** provenance: the cell this number came from */
+  source: string | null
+}
+
+export interface Series {
+  key: string
+  label: string
+  selector: SeriesSelector
+  sheet: string | null
+  sourceRange: string | null
+  tableId: number | null
+  points: SeriesPoint[]
+}
+
+export interface SelectorOptions {
+  tables: string[]
+  categories: string[]
+  subcategories: string[]
+  metrics: string[]
+  seriesTypes: string[]
+}
+
+export interface SeriesResponse {
+  versionId: number
+  department: Department
+  order: SeriesOrder
+  periods: Period[]
+  series: Series[]
+  options: SelectorOptions
+}
+
+export interface Delta {
+  valueA: number | null
+  valueB: number | null
+  displayA: string | null
+  displayB: string | null
+  delta: number | null
+  /** null whenever the baseline is missing or zero — never invented */
+  deltaPercent: number | null
+  direction: Direction
+  severity: Severity
+  status: DeltaStatus
+}
+
+export interface ComparisonRow {
+  key: string
+  label: string
+  selector: SeriesSelector
+  delta: Delta
+  sourceA: string | null
+  sourceB: string | null
+}
+
+export interface ExecutiveInsight {
+  title: string
+  department: Department | null
+  table: string | null
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  seriesType: string | null
+  period: Period | null
+  referencePeriod: Period | null
+  value: number | null
+  previousValue: number | null
+  displayValue: string | null
+  displayPrevious: string | null
+  delta: number | null
+  deltaPercent: number | null
+  direction: Direction
+  severity: Severity
+  status: DeltaStatus
+  source: string | null
+  sourceRange: string | null
+  versionId: number | null
+  versionNumber: number | null
+}
+
+export interface ComparisonResponse {
+  kind: 'periods' | 'versions'
+  versionId: number
+  versionNumber: number | null
+  comparedVersionId: number | null
+  comparedVersionNumber: number | null
+  department: Department
+  periodA: Period | null
+  periodB: Period | null
+  rows: ComparisonRow[]
+  insights: ExecutiveInsight[]
+  warnings: string[]
+  meta: Record<string, unknown>
+}
