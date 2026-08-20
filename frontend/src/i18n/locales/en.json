@@ -69,5 +69,28 @@
     "saveVersion": "Save version",
     "sourceRange": "Source range",
     "parserVersion": "Parser version"
+  },
+  "import": {
+    "title": "Raw data import",
+    "subtitle": "Upload the department workbook, check what the parser understood, then save the version.",
+    "chooseFile": "Choose file",
+    "noFile": "No file selected",
+    "parsing": "Parsing…",
+    "preview": "Parser preview",
+    "parserVersion": "Parser {{version}}",
+    "reused": "already parsed, result reused",
+    "clean": "No warnings",
+    "warningCount": "{{count}} warning(s)",
+    "tablesDetected": "Tables detected",
+    "periodsDetected": "Periods detected",
+    "version": "Version",
+    "notSavedYet": "Not saved yet",
+    "table": "Table",
+    "hierarchy": "Hierarchy",
+    "rows": "Rows",
+    "columns": "Columns",
+    "periodsShort": "Periods",
+    "saved": "Saved as version {{version}}",
+    "open": "Import raw data"
   }
 }

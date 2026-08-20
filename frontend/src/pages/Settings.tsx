@@ -34,12 +34,20 @@ export function Settings() {
                 </li>
               ))}
             </ul>
-            <Link
-              to={`/department/${department}`}
-              className="mt-4 inline-block text-sm font-medium text-brand-600 hover:text-brand-800"
-            >
-              {t('home.openPresentation')} →
-            </Link>
+            <div className="mt-4 flex flex-col gap-1 text-sm font-medium">
+              <Link
+                to={`/department/${department}/import`}
+                className="text-brand-600 hover:text-brand-800"
+              >
+                {t('import.open')} →
+              </Link>
+              <Link
+                to={`/department/${department}`}
+                className="text-brand-600 hover:text-brand-800"
+              >
+                {t('home.openPresentation')} →
+              </Link>
+            </div>
           </Card>
         ))}
       </div>

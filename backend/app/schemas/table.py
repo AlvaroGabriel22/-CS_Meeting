@@ -18,7 +18,9 @@ class PeriodOut(CamelModel):
     kind: PeriodKindLiteral
     label: str
     year: int | None = None
-    quarter: int | None = None
+    #: canonical quarter label — "1Q" … "4Q"
+    quarter: str | None = None
+    quarter_number: int | None = None
     month: int | None = None
     week: int | None = None
     day: int | None = None

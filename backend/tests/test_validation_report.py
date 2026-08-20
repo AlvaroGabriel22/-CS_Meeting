@@ -60,12 +60,20 @@ def test_ambiguities_are_reported_not_guessed(fixture_files: dict[str, Path]) ->
     table = parse_file(fixture_files["iqc_dataset_a.xlsx"], "IQC").tables[0]
     codes = {item.code: item for item in detect_ambiguities(table)}
 
-    # months and weeks carry no year in this layout — a real question for a human
-    assert "period_without_year" in codes
-    assert codes["period_without_year"].severity == "check"
-    assert codes["period_without_year"].evidence["labels"]
+    # this table states its years, so the engine resolves the rest: no question
+    assert "period_without_year" not in codes
     # mixing year/month/week columns is expected here, so it is only informative
     assert codes["mixed_period_granularity"].severity == "info"
+
+
+def test_period_without_year_is_still_reported_when_unresolvable(
+    fixture_files: dict[str, Path],
+) -> None:
+    """A table with weeks and no year anywhere keeps the question open."""
+    table = parse_file(fixture_files["field_asr_casr.xlsx"], "FIELD").tables[0]
+    codes = {item.code: item for item in detect_ambiguities(table)}
+    assert codes["period_without_year"].severity == "check"
+    assert codes["period_without_year"].evidence["labels"] == ["W31", "W32", "W33"]
 
 
 def test_verdict_reflects_the_worst_ambiguity(fixture_files: dict[str, Path]) -> None:

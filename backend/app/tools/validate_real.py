@@ -79,11 +79,15 @@ def render_markdown(report: dict[str, Any]) -> str:
 
         lines += ["", "### Periods detected", ""]
         if table["periods"]:
-            lines += ["| label | kind | year | month | week | sortKey |", "| --- | --- | --- | --- | --- | --- |"]
+            lines += [
+                "| label | kind | year | quarter | month | week | sortKey |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
             for period in table["periods"]:
                 lines.append(
                     f"| {period['label']} | {period['kind']} | {period['year'] or '—'} | "
-                    f"{period['month'] or '—'} | {period['week'] or '—'} | `{period['sortKey']}` |"
+                    f"{period.get('quarter') or '—'} | {period['month'] or '—'} | "
+                    f"{period['week'] or '—'} | `{period['sortKey']}` |"
                 )
         else:
             lines.append("_none_")

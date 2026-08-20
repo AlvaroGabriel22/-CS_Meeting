@@ -20,6 +20,9 @@ os.environ["CSM_DATABASE_URL"] = f"sqlite:///{_TMP_DATA / 'test.db'}"
 from app.db.base import Base, engine  # noqa: E402
 from app.db import models  # noqa: E402,F401
 from tests.fixtures.build_fixtures import build_all  # noqa: E402
+from tests.fixtures.build_iqc_fixtures import build_all as build_iqc_all  # noqa: E402
+
+REAL_DIR = Path(__file__).parent / "fixtures" / "real"
 
 Base.metadata.create_all(engine)
 
@@ -34,6 +37,23 @@ def fixtures_dir() -> Path:
 @pytest.fixture(scope="session")
 def fixture_files(fixtures_dir: Path) -> dict[str, Path]:
     return {path.name: path for path in sorted(fixtures_dir.glob("*.xlsx"))}
+
+
+@pytest.fixture(scope="session")
+def iqc_real() -> Path:
+    """The official IQC workbook — the reference structure of Sprint 1."""
+    path = REAL_DIR / "RawdataIQC.xlsx"
+    if not path.exists():
+        pytest.skip("the real IQC workbook is not available in tests/fixtures/real/")
+    return path
+
+
+@pytest.fixture(scope="session")
+def iqc_evolution() -> dict[str, Path]:
+    """Synthetic IQC workbooks whose period axis evolves month after month."""
+    target = _TMP_DATA / "iqc-evolution"
+    build_iqc_all(target)
+    return {path.stem.rsplit("_", 1)[-1]: path for path in sorted(target.glob("*.xlsx"))}
 
 
 @pytest.fixture()

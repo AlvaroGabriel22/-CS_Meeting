@@ -4,6 +4,8 @@ import type {
   ImportRecord,
   Interpretation,
   NormalizedTable,
+  Presentation,
+  PresentationVersion,
 } from '@/types/api'
 
 const BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -32,10 +34,28 @@ export const api = {
   getInterpretation: (importId: number, tableId: number) =>
     request<Interpretation>(`/api/imports/${importId}/tables/${tableId}/interpretation`),
 
-  uploadRawData: (department: Department, file: File) => {
+  /**
+   * Upload a raw workbook.
+   *
+   * `createVersion: false` parses and returns the preview without saving a
+   * snapshot — the import screen uses it before the user confirms.  Confirming
+   * afterwards is free: the identical file is not parsed twice.
+   */
+  uploadRawData: (
+    department: Department,
+    file: File,
+    options: { createVersion?: boolean } = {},
+  ) => {
     const form = new FormData()
     form.append('department', department)
     form.append('file', file)
+    form.append('createVersion', String(options.createVersion ?? true))
     return request<ImportRecord>('/api/uploads', { method: 'POST', body: form })
   },
+
+  listPresentations: (department?: Department) =>
+    request<Presentation[]>(`/api/presentations${department ? `?department=${department}` : ''}`),
+
+  listVersions: (presentationId: number) =>
+    request<PresentationVersion[]>(`/api/presentations/${presentationId}/versions`),
 }

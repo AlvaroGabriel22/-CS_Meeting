@@ -21,7 +21,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
-from .model import Period, PeriodKind
+from .model import Period, PeriodKind, quarter_label
 
 # --------------------------------------------------------------------------- #
 # Vocabulary
@@ -92,7 +92,8 @@ class PeriodFacets:
 
     kind: PeriodKind
     year: int | None = None
-    quarter: int | None = None
+    #: canonical quarter label — "1Q" … "4Q"
+    quarter: str | None = None
     month: int | None = None
     week: int | None = None
     day: int | None = None
@@ -156,7 +157,7 @@ def match_token(token: str) -> PeriodFacets | None:
     if m := _WEEK_KO_RE.match(text):
         return PeriodFacets(PeriodKind.WEEK, week=int(m[1]))
     if m := _QUARTER_RE.match(text) or _QUARTER_SUFFIX_RE.match(text):
-        return PeriodFacets(PeriodKind.QUARTER, quarter=int(m[1]))
+        return PeriodFacets(PeriodKind.QUARTER, quarter=quarter_label(int(m[1])))
     if text in _MONTHS:
         return PeriodFacets(PeriodKind.MONTH, month=_MONTHS[text])
     if m := _YEAR_MONTH_RE.match(text):
@@ -206,7 +207,7 @@ def match_token_in_row(token: str, row_kind: PeriodKind | None) -> PeriodFacets 
     if row_kind is PeriodKind.WEEK and 1 <= number <= 53:
         return PeriodFacets(PeriodKind.WEEK, week=number)
     if row_kind is PeriodKind.QUARTER and 1 <= number <= 4:
-        return PeriodFacets(PeriodKind.QUARTER, quarter=number)
+        return PeriodFacets(PeriodKind.QUARTER, quarter=quarter_label(number))
     return None
 
 

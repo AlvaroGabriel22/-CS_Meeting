@@ -8,7 +8,7 @@ Import the departments' raw Excel files, read their structure automatically,
 render tables and charts, write Issue Reports, translate with AI, version the
 work and export PPT/PDF. Local, no login, SQLite.
 
-## Status — Sprint 0 (discovery, validation, architecture)
+## Status — Sprint 1 (IQC real file + dynamic period engine)
 
 | Area | State |
 | --- | --- |
@@ -20,12 +20,17 @@ work and export PPT/PDF. Local, no login, SQLite.
 | Translation architecture (provider seam + cache + format rules) | ✅ contract + null provider |
 | Presentation model contract | ✅ defined |
 | Validation tooling for the real workbooks (report + ambiguities) | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 130 tests |
-| Frontend shell (design system, routing, i18n en/pt-BR/ko) | ✅ scaffold |
-| Charts, Issue Report editor, versions CRUD, AI provider, exports | ⏳ next sprints |
+| **Real IQC workbook parsed** (TTL / SEC / TNP, hierarchy, merges) | ✅ done |
+| **Period engine** (year inference, quarter↔month, ordering) | ✅ done |
+| **PPM identified without the word, verified arithmetically** | ✅ 87/87 |
+| **Version snapshots** (append-only, raw file kept) | ✅ done |
+| **IQC import screen** (upload → preview → save version) | ✅ done |
+| Tests + generated raw-data fixtures | ✅ 184 tests |
+| Table rendering, charts, Issue Report editor, AI provider, exports | ⏳ next sprints |
+| OQC / FIELD structures | ⏳ waiting for the real files |
 
-Read [`docs/sprint-0-report.md`](docs/sprint-0-report.md) for results,
-limitations, open decisions and risks.
+Read [`docs/sprint-1-report.md`](docs/sprint-1-report.md) for the latest
+results, limitations and next steps.
 
 ## Quick start
 
@@ -41,7 +46,16 @@ python3 -m venv .venv
 cd frontend
 npm install
 npm run dev                                     # http://localhost:5173
+
+# if port 8000 is taken by another project:
+VITE_API_PROXY=http://127.0.0.1:8100 npm run dev
 ```
+
+## Import IQC in the browser
+
+`http://localhost:5173/department/IQC/import` — choose the workbook, read what
+the parser understood (tables, periods, hierarchy, warnings), then save the
+version.
 
 ## See the pipeline work
 
@@ -74,7 +88,7 @@ warnings and **ambiguities**, plus a summarized JSON of the normalized model.
 ## Tests
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q     # 130 passed, 2 skipped
+cd backend && .venv/bin/python -m pytest -q     # 184 passed
 cd frontend && npm run build
 ```
 
@@ -84,8 +98,11 @@ cd frontend && npm run build
 * [`docs/excel-parser.md`](docs/excel-parser.md) — how the parser identifies structure
 * [`docs/data-model.md`](docs/data-model.md) — Excel → internal model, SQLite schema
 * [`docs/api-contract.md`](docs/api-contract.md) — endpoints and payloads
+* [`docs/period-engine.md`](docs/period-engine.md) — how periods are discovered and resolved
+* [`docs/versioning.md`](docs/versioning.md) — snapshots, and what never gets overwritten
 * [`docs/decisions.md`](docs/decisions.md) — architecture decision log
 * [`docs/sprint-0-report.md`](docs/sprint-0-report.md) — Sprint 0 report
+* [`docs/sprint-1-report.md`](docs/sprint-1-report.md) — Sprint 1 report
 
 ## The one rule
 

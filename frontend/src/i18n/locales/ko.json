@@ -69,5 +69,28 @@
     "saveVersion": "버전 저장",
     "sourceRange": "원본 범위",
     "parserVersion": "파서 버전"
+  },
+  "import": {
+    "title": "원본 데이터 가져오기",
+    "subtitle": "부서 파일을 업로드하고 파서가 인식한 내용을 확인한 뒤 버전을 저장하세요.",
+    "chooseFile": "파일 선택",
+    "noFile": "선택된 파일 없음",
+    "parsing": "분석 중…",
+    "preview": "파서 미리보기",
+    "parserVersion": "파서 {{version}}",
+    "reused": "이미 분석됨, 결과 재사용",
+    "clean": "경고 없음",
+    "warningCount": "경고 {{count}}건",
+    "tablesDetected": "감지된 표",
+    "periodsDetected": "감지된 기간",
+    "version": "버전",
+    "notSavedYet": "아직 저장되지 않음",
+    "table": "표",
+    "hierarchy": "계층",
+    "rows": "행",
+    "columns": "열",
+    "periodsShort": "기간",
+    "saved": "버전 {{version}}(으)로 저장됨",
+    "open": "원본 데이터 가져오기"
   }
 }

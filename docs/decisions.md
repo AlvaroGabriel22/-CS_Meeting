@@ -192,3 +192,82 @@ the user's to make, not the parser's.
 
 **Consequences.** `values.NA_TOKENS` is the single place to extend. A cell that
 is NA never carries a number, so it can never be summed as zero.
+
+---
+
+## ADR-0014 — A metric can be identified by structure alone
+
+**Decision (Sprint 1).** The parser identifies the headline metric of a block
+without requiring the word that names it. Three structural rules do the work:
+labels that repeat in every block are metrics, labels that appear once open a
+sub-group, and the first row of a block carries the block's headline figure. The
+*name* of that figure comes from the department schema
+(`headline_metric = "PPM"`), never from a branch in the parser.
+
+**Why.** The real IQC workbook never writes `PPM`: the value simply sits on the
+row that carries the group's name (or no name at all). A rule like
+`if cell == "PPM"` would read that file as having no PPM at all.
+
+**Safety net.** The schema also declares how the headline relates to its
+siblings (`PPM = Rej. Lot / Insp. Lot × 1_000_000`). Every block is checked
+against every period; on the real file 87 of 87 values match, which turns the
+inference into a verified fact. A mismatch raises
+`headline_metric_mismatch` — it never rewrites a value.
+
+**Reversibility.** Everything the parser inferred is marked: rows carry
+`inferred: ["category", "metric"]`, tables carry `headline_metric_inferred` and
+`implicit_group_label`. If the departments later start writing `PPM` in the
+sheet, the label is simply read and the inference stops firing.
+
+---
+
+## ADR-0015 — Undated periods inherit the table's reporting year
+
+**Decision (Sprint 1).** When a header states years explicitly (`'25`, `'26`)
+and leaves quarters or months undated (`1Q`, `Aug`), the undated periods take
+the **latest explicit year** and record `yearSource: "inferred"`. With no year
+anywhere, the year stays `null` and the table keeps the `period_without_year`
+warning.
+
+**Why.** `1Q | 2Q | 3Q | Aug` next to `'25 | '26` can only be the current year;
+without this, every chart would sort months under year zero and `Aug` of two
+different reports would look like the same period. This closes the open
+question raised in the Sprint 0 validation report.
+
+**Consequences.** The inference is visible per period, and reversible: removing
+it only means `sortKey` falls back to source order.
+
+---
+
+## ADR-0016 — OQC and FIELD schemas are marked provisional
+
+**Decision (Sprint 1).** `DepartmentSchema` gained a `provisional` flag.
+`IQC` is validated against the real workbook; `OQC` and `FIELD` carry only what
+the written specification says and are flagged `provisional=True` with a note.
+
+**Why.** The real OQC and FIELD files do not exist yet in this project. Nothing
+about their structure may be treated as known, and no heuristic may be tuned
+for them. When the files arrive they become fixtures, the schema is filled in
+from the data, and the IQC path stays untouched.
+
+---
+
+## ADR-0017 — A quarter is the label `1Q`…`4Q`, not a number
+
+**Decision.** `Period.quarter` holds the canonical label the reports use —
+`"1Q"`, `"2Q"`, `"3Q"`, `"4Q"` — whatever spelling the file used (`Q3`, `3Q`,
+`T3`, `3분기` all normalize to `"3Q"`). The ordinal remains available as
+`quarter_number` / `quarterNumber` for arithmetic, ordering and `sortKey`
+(`2026-Q3`, unchanged and deterministic).
+
+Months carry their quarter as the same label: Jan/Feb/Mar → `1Q`,
+Apr/May/Jun → `2Q`, Jul/Aug/Sep → `3Q`, Oct/Nov/Dec → `4Q`.
+
+**Why.** The internal semantic model should speak the department's language. A
+bare `3` is ambiguous the moment it leaves the parser — in an API payload, a
+chart legend or an export it reads as "three", not "third quarter" — and it
+invited exactly the confusion this ADR closes.
+
+**Consequences.** The change touched the model, the vocabulary, the engine, the
+wire contract and the frontend types. `sortKey` was deliberately left as
+`YYYY-Qn` so ordering across generations of the file stays stable.

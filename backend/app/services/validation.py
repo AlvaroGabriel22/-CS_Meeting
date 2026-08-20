@@ -252,6 +252,7 @@ def table_report(table: NormalizedTable) -> dict[str, Any]:
                 "label": period.label,
                 "kind": period.kind.value,
                 "year": period.year,
+                "quarter": period.quarter,
                 "month": period.month,
                 "week": period.week,
                 "sortKey": period.sort_key,

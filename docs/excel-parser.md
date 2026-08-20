@@ -35,9 +35,13 @@ The resulting range is stored as `sourceRange`. It is output, not input.
 
 ### 3. Interpreter — what it means
 
-`app/excel/interpreter.py`.
+`app/excel/interpreter.py` (helped by `app/excel/hierarchy.py` for the labels
+and `app/excel/period_engine.py` for the time axis).
 
-**Title** — a lone, wide, non-numeric row at the top of the region.
+**Title** — a lone, wide, non-numeric row at the top of the region, or a corner
+cell merged across the label columns. In the real IQC sheet the header starts
+with `TTL` merged over both label columns: that is the table naming itself, and
+it becomes the table's title (`TTL`, `SEC`, `TNP`).
 
 **Header band** — leading rows that are not measurements. A row counts as data
 when enough of its cells are real measurements. Period tokens (`2026`, `Aug`,
@@ -74,6 +78,11 @@ meaning; a lonely `8` does not become August).
 columns. Otherwise the first label column is tested as a period sequence, which
 catches transposed tables (`W30 W31 W32` running downwards).
 
+**Period engine** — once the columns are known they are resolved *against each
+other*: undated quarters and months inherit the reporting year, months learn
+their quarter, and everything gets a chronological `sortKey`. See
+[period-engine.md](period-engine.md).
+
 **Hierarchy** — label columns are assigned in this order (ADR-0012):
 
 1. a column dominated by *plan-vs-outcome* labels (`Target`, `Result`, `Plan`,
@@ -86,7 +95,48 @@ catches transposed tables (`W30 W31 W32` running downwards).
 4. a single label column of unknown words names the rows: category.
 
 Merged and blank label cells are carried downwards, so `SEC` written once above
-nine rows reaches all nine.
+nine rows reaches all nine. The interpreter also records *where the analyst
+actually typed* each label, because that is what separates a new block from a
+continuation.
+
+**Blocks, and metrics that are never written** — the real IQC tables look like
+this (column B on the left, column C in the middle):
+
+```
+(empty)   (empty)      6629     ← the headline metric of the block: PPM
+(empty)   Rej. Lot      139
+(empty)   Insp. Lot   20970
+Imported  (empty)      5319     ← headline metric of "Imported"
+Imported  Rej. Lot       83
+Imported  Insp. Lot   15604
+Imported  SKD         18847     ← a sub-group, and its headline metric
+Imported  Rej. Lot       69
+Imported  Insp. Lot    3661
+```
+
+The word `PPM` never appears, `SKD`/`CKD` sit in the *metric* column although
+they are sub-groups, and the first block has no name. Three structural rules
+read it (ADR-0014), with no vocabulary requirement:
+
+1. **repetition separates metrics from groups** — a label that comes back in
+   every block (`Rej. Lot`, `Insp. Lot`) is a metric; a label appearing once
+   (`SKD`, `CKD`) opens a sub-group;
+2. **a block starts** where a category is written, where a sub-group label
+   appears, or where the metric cell is empty;
+3. **the first row of a block carries the headline metric** — the derived figure
+   the block is about. Its name comes from the department schema
+   (`headline_metric = "PPM"` for IQC) and is flagged as inferred; an unnamed
+   leading block gets `implicit_group_label` (`Total`), also flagged.
+
+Every inference is visible on the row (`inferred: ["category", "metric"]`) and
+on the table (`headline_metric_inferred`, `implicit_group_label`).
+
+**Verification** — an inference that can be checked, is checked. The schema
+declares how the headline metric relates to its siblings
+(`PPM = Rej. Lot / Insp. Lot × 1_000_000`), and `app/excel/verification.py`
+tests every block against every period. On the real IQC file all 87 values
+match, which *proves* the unnamed rows are PPM. A mismatch never rewrites a
+value: it raises `headline_metric_mismatch`.
 
 ```
 SEC   → Total   → PPM / Def. / Insp.        category > subcategory > metric
@@ -139,10 +189,21 @@ them.
 
 ## Warnings instead of guesses
 
-The parser never invents structure. When something is off it says so:
-`no_period_detected`, `formula_without_cached_value`, `region_failed:<range>`,
-`no_table_detected`, `empty_sheet`. A region that raises is skipped with a
-warning — one broken table cannot lose a whole import.
+The parser never invents structure. When something is off, or when it had to
+infer, it says so:
+
+| Warning | Meaning |
+| --- | --- |
+| `headline_metric_inferred` | the block's first row was named from the schema (`PPM`) |
+| `implicit_group_label` | an unnamed leading block was called `Total` |
+| `headline_metric_mismatch` | the headline value does not match its own numerator/denominator |
+| `unnamed_headline_metric` | no schema to name the headline row; the metric is left null |
+| `period_without_year` | months/weeks with no year anywhere in the table |
+| `no_period_detected` | a matrix table whose header tokens are not periods |
+| `formula_without_cached_value` | the workbook was saved without evaluating its formulas |
+| `region_failed:<range>` | one region raised; the rest of the file was still imported |
+| `skipped_non_tabular_region:<range>` | a prose block (a README, a legend) was ignored |
+| `no_table_detected`, `empty_sheet` | nothing to import |
 
 ## Known limits (see the Sprint 0 report)
 

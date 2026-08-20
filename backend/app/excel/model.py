@@ -77,6 +77,35 @@ class TableShape(str, Enum):
 
 
 # --------------------------------------------------------------------------- #
+# Quarters — canonical form is the label the reports use: "1Q" … "4Q"
+# --------------------------------------------------------------------------- #
+QUARTER_LABELS: tuple[str, ...] = ("1Q", "2Q", "3Q", "4Q")
+
+#: which quarter each month belongs to (Jan/Feb/Mar -> 1Q, …)
+QUARTER_OF_MONTH: dict[int, str] = {
+    month: QUARTER_LABELS[(month - 1) // 3] for month in range(1, 13)
+}
+
+
+def quarter_label(number: int | str | None) -> str | None:
+    """Canonical quarter label: ``3`` and ``"3Q"`` both give ``"3Q"``."""
+    if number is None:
+        return None
+    if isinstance(number, str):
+        digits = "".join(ch for ch in number if ch.isdigit())
+        number = int(digits) if digits else 0
+    return QUARTER_LABELS[number - 1] if 1 <= number <= 4 else None
+
+
+def quarter_number(label: str | None) -> int | None:
+    """The ordinal behind a canonical label: ``"3Q"`` -> ``3``."""
+    if not label:
+        return None
+    digits = "".join(ch for ch in label if ch.isdigit())
+    return int(digits) if digits and 1 <= int(digits) <= 4 else None
+
+
+# --------------------------------------------------------------------------- #
 # Period descriptor
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
@@ -90,11 +119,42 @@ class Period:
     kind: PeriodKind
     label: str
     year: int | None = None
-    quarter: int | None = None
+    #: canonical quarter label — "1Q", "2Q", "3Q" or "4Q" (never a bare number)
+    quarter: str | None = None
     month: int | None = None
     week: int | None = None
     day: int | None = None
     tokens: tuple[str, ...] = ()
+    #: where ``year`` came from — "explicit" (written in the header) or
+    #: "inferred" (resolved from the table's context by the period engine)
+    year_source: str | None = None
+
+    @property
+    def quarter_number(self) -> int | None:
+        """The quarter's ordinal, for ordering and arithmetic."""
+        return quarter_number(self.quarter)
+
+    @property
+    def months(self) -> tuple[int, ...]:
+        """Months this period covers (a quarter covers three)."""
+        if self.kind is PeriodKind.MONTH and self.month:
+            return (self.month,)
+        if self.kind is PeriodKind.QUARTER and self.quarter_number:
+            first = (self.quarter_number - 1) * 3 + 1
+            return (first, first + 1, first + 2)
+        if self.kind is PeriodKind.YEAR:
+            return tuple(range(1, 13))
+        return ()
+
+    def contains(self, other: "Period") -> bool:
+        """True when ``other`` falls inside this period (1Q contains Feb)."""
+        if self.year and other.year and self.year != other.year:
+            return False
+        if self.kind is PeriodKind.YEAR:
+            return other.kind is not PeriodKind.YEAR
+        if self.kind is PeriodKind.QUARTER and other.kind is PeriodKind.MONTH:
+            return bool(other.month) and other.month in self.months
+        return False
 
     @property
     def sort_key(self) -> str:
@@ -109,8 +169,8 @@ class Period:
             return f"{year}-W{self.week:02d}"
         if self.kind is PeriodKind.MONTH and self.month is not None:
             return f"{year}-M{self.month:02d}"
-        if self.kind is PeriodKind.QUARTER and self.quarter is not None:
-            return f"{year}-Q{self.quarter}"
+        if self.kind is PeriodKind.QUARTER and self.quarter_number is not None:
+            return f"{year}-Q{self.quarter_number}"
         if self.kind is PeriodKind.DAY and self.day is not None:
             return f"{year}-M{self.month or 0:02d}-D{self.day:02d}"
         if self.kind is PeriodKind.YEAR:
@@ -123,10 +183,12 @@ class Period:
             "label": self.label,
             "year": self.year,
             "quarter": self.quarter,
+            "quarterNumber": self.quarter_number,
             "month": self.month,
             "week": self.week,
             "day": self.day,
             "sortKey": self.sort_key,
+            "yearSource": self.year_source,
             "tokens": list(self.tokens),
         }
 
@@ -305,6 +367,10 @@ class RowDescriptor:
     #: "Target" / "Result" rows keep their series meaning instead of pretending
     #: to be a metric (ADR-0012)
     series_type: str | None = None
+    #: index of the label block this row belongs to (a group and its metrics)
+    block: int = 0
+    #: fields the parser inferred rather than read ("category", "metric")
+    inferred: tuple[str, ...] = ()
     semantic: SemanticType = SemanticType.UNKNOWN
     is_header_row: bool = False
     period: Period | None = None  # only when the table is transposed
@@ -321,6 +387,8 @@ class RowDescriptor:
             "subcategory": self.subcategory,
             "metric": self.metric,
             "seriesType": self.series_type,
+            "block": self.block,
+            "inferred": list(self.inferred),
             "semantic": self.semantic.value,
             "isHeaderRow": self.is_header_row,
             "period": self.period.to_dict() if self.period else None,

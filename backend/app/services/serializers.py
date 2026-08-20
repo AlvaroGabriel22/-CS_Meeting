@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from app.db.models import DepartmentData, TableDefinition
+from app.db.models import DepartmentData, PresentationVersion, TableDefinition
+from app.db.models import Presentation  # noqa: F401  (typing)
 from app.schemas.imports import ImportOut, RawFileOut
+from app.schemas.presentation import PresentationOut, PresentationVersionOut
 from app.schemas.table import (
     CellStyleOut,
     PeriodOut,
@@ -113,11 +115,59 @@ def table_summary_out(definition: TableDefinition) -> TableSummaryOut:
     )
 
 
-def import_out(data: DepartmentData, *, reused: bool = False) -> ImportOut:
+def version_out(version: PresentationVersion) -> "PresentationVersionOut":
+    return PresentationVersionOut(
+        id=version.id,
+        presentation_id=version.presentation_id,
+        number=version.number,
+        label=version.label,
+        status=version.status.value if hasattr(version.status, "value") else version.status,
+        notes=version.notes,
+        created_at=version.created_at,
+        published_at=version.published_at,
+        parent_version_id=version.parent_version_id,
+        summary=version.summary or {},
+        warnings=version.warnings or [],
+        import_ids=[item.id for item in version.imports],
+    )
+
+
+def presentation_out(presentation: "Presentation") -> "PresentationOut":
+    versions = sorted(presentation.versions, key=lambda v: v.number)
+    latest = versions[-1] if versions else None
+    return PresentationOut(
+        id=presentation.id,
+        department=presentation.department.value,
+        name=presentation.name,
+        period_label=presentation.period_label,
+        status=presentation.status.value
+        if hasattr(presentation.status, "value")
+        else presentation.status,
+        created_at=presentation.created_at,
+        updated_at=presentation.updated_at,
+        archived_at=presentation.archived_at,
+        trashed_at=presentation.trashed_at,
+        latest_version=version_out(latest) if latest else None,
+        version_count=len(versions),
+    )
+
+
+def import_out(
+    data: DepartmentData,
+    *,
+    reused: bool = False,
+    version: "PresentationVersion | None" = None,
+) -> ImportOut:
     raw = data.raw_file
+    summary = data.summary or {}
     return ImportOut(
         id=data.id,
         reused=reused,
+        presentation_id=version.presentation_id if version else None,
+        version_id=version.id if version else None,
+        version_number=version.number if version else None,
+        table_names=list(summary.get("tableNames") or []),
+        periods=list(summary.get("periodLabels") or []),
         department=data.department.value,
         parser_version=data.parser_version,
         parsed_at=data.parsed_at,

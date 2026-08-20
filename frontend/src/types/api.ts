@@ -9,6 +9,7 @@ export type Department = 'IQC' | 'OQC' | 'FIELD'
 export type Language = 'en' | 'pt-BR' | 'ko'
 
 export type PeriodKind = 'year' | 'quarter' | 'month' | 'week' | 'day' | 'unknown'
+export type Quarter = '1Q' | '2Q' | '3Q' | '4Q'
 export type CellRole = 'header' | 'label' | 'value' | 'empty'
 export type ValueType = 'empty' | 'number' | 'text' | 'date' | 'bool' | 'error' | 'na'
 export type TableShape = 'matrix' | 'flat' | 'fragment'
@@ -30,7 +31,10 @@ export interface Period {
   kind: PeriodKind
   label: string
   year: number | null
-  quarter: number | null
+  /** canonical quarter label — "1Q" | "2Q" | "3Q" | "4Q" */
+  quarter: Quarter | null
+  /** the same quarter as an ordinal, for arithmetic */
+  quarterNumber: number | null
   month: number | null
   week: number | null
   day: number | null
@@ -159,12 +163,21 @@ export interface RawFile {
 }
 
 export interface ImportRecord {
+  success: boolean
   id: number
   /** true when an identical file had already been parsed (no re-parse) */
   reused: boolean
   department: Department
   parserVersion: string
   parsedAt: string
+  /** the snapshot this upload created (null when createVersion=false) */
+  presentationId: number | null
+  versionId: number | null
+  versionNumber: number | null
+  /** detected table names, in file order — "TTL", "SEC", "TNP" */
+  tableNames: string[]
+  /** period labels, in file order — "'25", "'26", "1Q", "2Q", "3Q", "Aug" */
+  periods: string[]
   summary: {
     filename?: string
     sheets?: string[]
@@ -300,6 +313,7 @@ export interface Asset {
 
 export interface PresentationVersion {
   id: number
+  presentationId: number | null
   number: number
   label: string | null
   status: VersionStatus
@@ -307,6 +321,15 @@ export interface PresentationVersion {
   createdAt: string
   publishedAt: string | null
   parentVersionId: number | null
+  summary: {
+    parserVersion?: string
+    tableNames?: string[]
+    periodLabels?: string[]
+    tableCount?: number
+    rawFile?: string | null
+  }
+  warnings: string[]
+  importIds: number[]
 }
 
 export interface Presentation {

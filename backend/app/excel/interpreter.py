@@ -18,9 +18,12 @@ from openpyxl.utils import get_column_letter
 
 from app.domain.departments import DepartmentSchema, canonical, is_metric_token
 
+from . import hierarchy as H
+from . import period_engine as PE
 from . import periods as P
 from . import values as V
 from .model import (
+    CellRole,
     ColumnDescriptor,
     PeriodAxis,
     PeriodKind,
@@ -64,6 +67,10 @@ class TableInterpretation:
     hierarchy: tuple[str, ...] = ()
     #: label column index -> hierarchy level name
     label_roles: dict[int, str] = field(default_factory=dict)
+    #: (row index, column index) -> semantic, for label cells that do not follow
+    #: their column's role (a sub-group sitting in the metric column)
+    cell_semantics: dict[tuple[int, int], SemanticType] = field(default_factory=dict)
+    reporting_year: int | None = None
     warnings: list[str] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
 
@@ -176,111 +183,54 @@ def _header_row_values(sheet: RawSheet, row: int, c1: int, c2: int) -> list[str]
 # --------------------------------------------------------------------------- #
 def _label_matrix(
     sheet: RawSheet, rect: Rect, data_start: int, label_cols: int
-) -> list[list[str]]:
-    """Label values per data row, with merged/blank groups carried downwards."""
+) -> list[list[H.LabelCell]]:
+    """Label cells per data row.
+
+    ``value`` is the label in force (a merged or blank cell inherits the one
+    above); ``written`` is True only where the analyst actually typed it, which
+    is what tells a new block from a continuation.
+    """
     carry = [""] * label_cols
-    matrix: list[list[str]] = []
+    matrix: list[list[H.LabelCell]] = []
     for row in range(data_start, rect.r2 + 1):
-        parts: list[str] = []
+        parts: list[H.LabelCell] = []
         for i in range(label_cols):
+            cell = sheet.get(row, rect.c1 + i)
             text = sheet.text(row, rect.c1 + i)
+            written = bool(text) and (cell is None or not cell.merged_range or cell.is_merge_anchor)
             if text:
                 carry[i] = text
                 carry[i + 1 :] = [""] * (label_cols - i - 1)
-            parts.append(text or carry[i])
+            parts.append(H.LabelCell(value=text or carry[i], written=written))
         matrix.append(parts)
     return matrix
-
-
-def _dominated_by(matrix: list[list[str]], index: int, predicate, minimum_distinct: int = 1) -> bool:
-    """True when a label column is mostly made of one kind of token."""
-    values = [row[index] for row in matrix if row[index]]
-    if not values:
-        return False
-    hits = [value for value in values if predicate(value)]
-    if len({value for value in hits}) < minimum_distinct:
-        return False
-    return len(hits) >= max(1, int(0.6 * len(values)))
-
-
-def _assign_hierarchy(
-    matrix: list[list[str]], label_cols: int, schema: DepartmentSchema | None
-) -> tuple[dict[int, str], tuple[str, ...]]:
-    """Decide what each label column is: category, subcategory, metric, series.
-
-    Order of reasoning:
-
-    1. A column dominated by *plan-vs-outcome* labels (``Target``/``Result``)
-       is a **series**, never a metric — it says how a number was produced, not
-       what was measured (ADR-0012).
-    2. The outermost remaining column groups the rows, so it is a category and
-       is never considered for the metric role.
-    3. The metric is the innermost remaining column whose values read as
-       measured quantities (``PPM``, ``Def.``, ``Insp.``…); failing that, the
-       layout itself implies the innermost column names the measure.
-    4. A single label column of unknown words names the rows: category.
-    """
-    if label_cols <= 0 or not matrix:
-        return {}, ()
-
-    roles: dict[int, str] = {}
-
-    series_col = next(
-        (
-            index
-            for index in range(label_cols - 1, -1, -1)
-            if _dominated_by(
-                matrix, index, lambda value: P.match_plan_actual_series(value) is not None, 2
-            )
-        ),
-        None,
-    )
-    if series_col is not None:
-        roles[series_col] = "series"
-
-    remaining = [index for index in range(label_cols) if index not in roles]
-    if not remaining:
-        return roles, ("series",)
-
-    category_col = remaining[0] if len(remaining) >= 2 else None
-    metric_candidates = [index for index in remaining if index != category_col]
-
-    metric_col = next(
-        (
-            index
-            for index in reversed(metric_candidates)
-            if _dominated_by(matrix, index, lambda value: is_metric_token(value, schema))
-        ),
-        None,
-    )
-    if metric_col is None and series_col is None and len(remaining) >= 2:
-        metric_col = remaining[-1]
-
-    if metric_col is not None:
-        roles[metric_col] = "metric"
-
-    outer = [index for index in remaining if metric_col is None or index < metric_col]
-    if outer:
-        roles[outer[0]] = "category"
-    if len(outer) >= 2:
-        roles[outer[1]] = "subcategory"
-    for index in outer[2:]:
-        roles[index] = "label"
-
-    order = {"category": 0, "subcategory": 1, "metric": 2, "series": 3}
-    hierarchy = tuple(
-        role
-        for role in sorted(
-            (role for role in roles.values() if role in order),
-            key=lambda role: order[role],
-        )
-    )
-    return roles, hierarchy
 
 
 # --------------------------------------------------------------------------- #
 # Main entry point
 # --------------------------------------------------------------------------- #
+def _corner_table_name(
+    sheet: RawSheet, rect: Rect, first_row: int, label_cols: int
+) -> str | None:
+    """The table's own name, when the header's corner cell carries it.
+
+    In the real IQC sheet the header row starts with ``TTL`` merged across both
+    label columns; that is the table talking about itself, not a column title.
+    """
+    if label_cols < 1:
+        return None
+    cell = sheet.get(first_row, rect.c1)
+    text = sheet.text(first_row, rect.c1)
+    if not text or cell is None or not cell.merged_range:
+        return None
+    if P.match_token(text) or P.match_series(text):
+        return None  # a merged period header, not a name
+    from openpyxl.utils import range_boundaries
+
+    c1, _r1, c2, _r2 = range_boundaries(cell.merged_range)
+    return text if (c2 - c1 + 1) >= label_cols else None
+
+
 def interpret_region(
     sheet: RawSheet, rect: Rect, schema: DepartmentSchema | None = None
 ) -> TableInterpretation:
@@ -290,6 +240,9 @@ def interpret_region(
     header_rows = _detect_header_rows(sheet, rect, first_row)
     data_start = first_row + header_rows
     label_cols = _detect_label_cols(sheet, rect, data_start)
+    corner_name = _corner_table_name(sheet, rect, first_row, label_cols) if header_rows else None
+    if corner_name and not title:
+        title = corner_name
 
     interpretation = TableInterpretation(
         rect=rect,
@@ -337,9 +290,11 @@ def interpret_region(
 
     # ---------------- rows & hierarchy ------------------------------------ #
     matrix = _label_matrix(sheet, rect, data_start, label_cols)
-    roles, hierarchy = _assign_hierarchy(matrix, label_cols, schema)
-    interpretation.label_roles = roles
-    interpretation.hierarchy = hierarchy
+    labels = H.analyze(matrix, label_cols, schema)
+    interpretation.label_roles = labels.roles
+    interpretation.hierarchy = labels.hierarchy
+    interpretation.warnings.extend(labels.warnings)
+    interpretation.meta.update(labels.meta)
 
     for offset, row in enumerate(range(rect.r1, rect.r2 + 1)):
         is_header = offset < title_rows + header_rows
@@ -355,28 +310,19 @@ def interpret_region(
             else SemanticType.VALUE,
         )
         if not is_header and label_cols:
-            labels = matrix[offset - (title_rows + header_rows)]
-            descriptor.label_path = tuple(value for value in labels if value)
+            data_index = offset - (title_rows + header_rows)
+            cells = matrix[data_index]
+            row_labels = labels.rows[data_index]
+            descriptor.label_path = tuple(cell.value for cell in cells if cell.value)
             descriptor.label = descriptor.label_path[-1] if descriptor.label_path else ""
             descriptor.level = max(len(descriptor.label_path) - 1, 0)
-            for index, role in roles.items():
-                value = labels[index] if index < len(labels) else ""
-                if not value:
-                    continue
-                if role == "category":
-                    descriptor.category = value
-                elif role == "subcategory":
-                    descriptor.subcategory = value
-                elif role == "series":
-                    descriptor.series_type = P.match_plan_actual_series(value) or value
-                elif role == "metric":
-                    # a plan/outcome label sitting in the metric column is still
-                    # a series: "Target" says how, not what (ADR-0012)
-                    series = P.match_plan_actual_series(value)
-                    if series:
-                        descriptor.series_type = series
-                    else:
-                        descriptor.metric = value
+            descriptor.category = row_labels.category
+            descriptor.subcategory = row_labels.subcategory
+            descriptor.metric = row_labels.metric
+            descriptor.series_type = row_labels.series_type
+            descriptor.block = row_labels.block
+            descriptor.inferred = row_labels.inferred
+
             if descriptor.metric:
                 descriptor.semantic = SemanticType.METRIC
             elif descriptor.series_type:
@@ -385,7 +331,25 @@ def interpret_region(
                 descriptor.semantic = SemanticType.SUBCATEGORY
             elif descriptor.category:
                 descriptor.semantic = SemanticType.CATEGORY
+
+            # a sub-group label written in the metric column is a subcategory
+            metric_col = next(
+                (index for index, role in labels.roles.items() if role == "metric"), None
+            )
+            if metric_col is not None and cells[metric_col].written:
+                if cells[metric_col].value in labels.subgroups:
+                    interpretation.cell_semantics[(offset, metric_col)] = SemanticType.SUBCATEGORY
         interpretation.rows.append(descriptor)
+
+    # ---------------- period engine --------------------------------------- #
+    resolution = PE.resolve([column.period for column in interpretation.columns if column.period])
+    if resolution.periods:
+        resolved = iter(resolution.periods)
+        for column in interpretation.columns:
+            if column.period:
+                column.period = next(resolved)
+        interpretation.reporting_year = resolution.reporting_year
+        interpretation.warnings.extend(resolution.warnings)
 
     # ---------------- period axis ----------------------------------------- #
     column_periods = [column.period for column in interpretation.columns if column.period]
@@ -407,6 +371,13 @@ def interpret_region(
                     # the row *is* a period; it is not a metric or a category
                     descriptor.semantic = SemanticType.PERIOD
                     descriptor.category = descriptor.subcategory = descriptor.metric = None
+            row_resolution = PE.resolve([row.period for row in interpretation.rows if row.period])
+            if row_resolution.periods:
+                resolved_rows = iter(row_resolution.periods)
+                for descriptor in interpretation.rows:
+                    if descriptor.period:
+                        descriptor.period = next(resolved_rows)
+                interpretation.reporting_year = row_resolution.reporting_year
             interpretation.hierarchy = ()
             interpretation.label_roles = {}
 
@@ -435,9 +406,11 @@ def interpret_region(
         {
             "contextYear": max(years) if years else None,
             "cornerLabel": corner,
+            "tableName": corner_name,
+            "reportingYear": interpretation.reporting_year,
             "dataStartRow": data_start,
             "titleRows": title_rows,
-            "labelRoles": {str(index): role for index, role in roles.items()},
+            "labelRoles": {str(index): role for index, role in labels.roles.items()},
             "schema": schema.code if schema else None,
         }
     )
@@ -446,7 +419,7 @@ def interpret_region(
         rect.a1,
         header_rows,
         label_cols,
-        hierarchy,
+        interpretation.hierarchy,
         interpretation.period_axis.value,
     )
     return interpretation

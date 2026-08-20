@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
+import { buttonVariants } from '@/components/ui/button'
 import { Card, CardDescription, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import type { Department as DepartmentCode } from '@/types/api'
 
 const VALID: DepartmentCode[] = ['IQC', 'OQC', 'FIELD']
@@ -23,13 +25,21 @@ export function Department() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-6 py-10">
-      <header className="mb-8">
-        <span className="text-xs font-semibold uppercase tracking-widest text-brand-500">
-          {t(`department.${department}`)}
-        </span>
-        <h1 className="mt-1 text-2xl font-semibold text-brand-900">
-          {t(`department.${department}_full`)}
-        </h1>
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-widest text-brand-500">
+            {t(`department.${department}`)}
+          </span>
+          <h1 className="mt-1 text-2xl font-semibold text-brand-900">
+            {t(`department.${department}_full`)}
+          </h1>
+        </div>
+        <Link
+          to={`/department/${department}/import`}
+          className={cn(buttonVariants({ variant: 'secondary' }))}
+        >
+          {t('import.open')}
+        </Link>
       </header>
 
       <div className="space-y-6">

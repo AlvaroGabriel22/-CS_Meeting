@@ -20,7 +20,10 @@ neither.
 | Parser | `app/excel/parser.py` | file → `RawWorkbook` | assign meaning |
 | Regions | `app/excel/regions.py` | sheet → `Rect[]` | read values |
 | Interpreter | `app/excel/interpreter.py` | region → `TableInterpretation` | build cells |
+| Labels | `app/excel/hierarchy.py` | label cells → category/subcategory/metric/series | touch periods |
+| Periods | `app/excel/period_engine.py` | periods → resolved periods | touch cells |
 | Normalizer | `app/excel/normalizer.py` | interpretation → `NormalizedTable` | touch openpyxl |
+| Verification | `app/excel/verification.py` | table → confirmed / warned | change a value |
 | Repository | `app/services/import_service.py` | model ↔ SQLite | parse |
 | Presentation | `app/services/interpretation.py` (+ Sprint 1 services) | model → presentation model | mutate facts |
 | Frontend | `frontend/src` | presentation model → UI | know Excel |
@@ -40,7 +43,8 @@ CS_Meeting/
 │   │   ├── db/            SQLAlchemy engine + SQLite schema
 │   │   ├── domain/        department schemas (configuration, not ifs)
 │   │   ├── excel/         raw_model → parser → regions → interpreter
-│   │   │                  → normalizer → pipeline (+ periods, values, model)
+│   │   │                  → normalizer → verification → pipeline
+│   │   │                  (+ periods, period_engine, hierarchy, values, model)
 │   │   ├── schemas/       Pydantic wire contract (camelCase)
 │   │   ├── services/      storage, import, interpretation, translation/
 │   │   ├── tools/         inspect_raw.py (CLI proof of interpretation)

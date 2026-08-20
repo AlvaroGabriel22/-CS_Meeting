@@ -220,13 +220,22 @@ def persist_parsed_workbook(
 
 
 def _summary(parsed: ParsedWorkbook) -> dict:
+    """What the import shows, in the order the file shows it."""
     periods: list[str] = []
     for table in parsed.tables:
-        periods.extend(period.label for period in table.periods)
+        for period in table.periods:
+            if period.label not in periods:
+                periods.append(period.label)
+    names = [table.title for table in parsed.tables if table.title]
     return {
         "filename": parsed.filename,
         "sheets": [sheet.name for sheet in parsed.sheets],
         "tableCount": len(parsed.tables),
-        "periodLabels": sorted(set(periods)),
+        "tableNames": names,
+        "periodLabels": periods,
         "shapes": sorted({table.shape.value for table in parsed.tables}),
+        "reportingYear": next(
+            (table.meta.get("reportingYear") for table in parsed.tables if table.meta.get("reportingYear")),
+            None,
+        ),
     }

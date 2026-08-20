@@ -100,6 +100,7 @@ class TranslationOut(CamelModel):
 
 class PresentationVersionOut(CamelModel):
     id: int
+    presentation_id: int | None = None
     number: int
     label: str | None = None
     status: VersionStatusLiteral = "draft"
@@ -107,6 +108,11 @@ class PresentationVersionOut(CamelModel):
     created_at: datetime
     published_at: datetime | None = None
     parent_version_id: int | None = None
+    #: what this snapshot shows: periods, table names, parser version
+    summary: dict[str, Any] = {}
+    warnings: list[str] = []
+    #: the imports frozen in this version (referenced, never copied)
+    import_ids: list[int] = []
 
 
 class PresentationOut(CamelModel):

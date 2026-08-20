@@ -59,6 +59,9 @@ def _cell_semantic(
             return SemanticType.SERIES
         return SemanticType.LABEL
     if role is CellRole.LABEL:
+        override = interpretation.cell_semantics.get((row_offset, col_offset))
+        if override is not None:
+            return override
         role_name = interpretation.label_roles.get(col_offset, "label")
         return {
             "category": SemanticType.CATEGORY,

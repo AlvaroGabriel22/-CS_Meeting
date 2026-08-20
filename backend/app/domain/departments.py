@@ -25,6 +25,22 @@ def canonical(text: str) -> str:
 
 
 @dataclass(frozen=True)
+class HeadlineFormula:
+    """How the headline metric of a block is derived from its siblings.
+
+    Used to *verify* an inference, never to produce a value: if the block says
+    ``Rej. Lot = 139`` and ``Insp. Lot = 20970``, then a headline of ``6629``
+    confirms the row really is PPM.  A mismatch raises a warning instead of
+    rewriting anything.
+    """
+
+    numerator: str
+    denominator: str
+    scale: float = 1_000_000.0
+    tolerance: float = 0.02  # 2% — the file is rounded
+
+
+@dataclass(frozen=True)
 class DepartmentSchema:
     """What is known about one department's raw data."""
 
@@ -38,6 +54,17 @@ class DepartmentSchema:
     metrics: tuple[str, ...] = ()
     #: tokens that must never be translated by the AI (ADR-0007)
     protected_terms: tuple[str, ...] = ()
+    #: name given to a leading block that carries no label of its own
+    implicit_group_label: str | None = None
+    #: metric of the first row of each block, which the file never spells out
+    headline_metric: str | None = None
+    #: how to check that inference against the block's other rows
+    headline_formula: HeadlineFormula | None = None
+    #: table names seen in the corner cell of the header
+    tables: tuple[str, ...] = ()
+    #: True while the structure comes from the specification and no real
+    #: workbook has been seen yet — such a schema must not drive decisions
+    provisional: bool = False
     notes: str = ""
 
     _index: dict[str, frozenset[str]] = field(default_factory=dict, repr=False, compare=False)
@@ -92,30 +119,43 @@ GLOBAL_PROTECTED_TERMS: tuple[str, ...] = (
 )
 
 DEPARTMENT_SCHEMAS: dict[str, DepartmentSchema] = {
+    # --- IQC: validated against the real workbook (Sprint 1) ---------------- #
     "IQC": DepartmentSchema(
         code="IQC",
         label="Incoming Quality Control",
-        sections=("SEC", "TNP", "TECPLAM"),
-        subgroups=("Total", "TSI", "Packing"),
-        metrics=("PPM", "Def.", "Insp.", "Target", "Result"),
-        protected_terms=("SEC", "TNP", "TECPLAM", "TSI", "PPM"),
+        tables=("TTL", "SEC", "TNP"),
+        sections=("Total", "Imported", "Local"),
+        subgroups=("SKD", "CKD"),
+        metrics=("PPM", "Rej. Lot", "Insp. Lot"),
+        implicit_group_label="Total",
+        headline_metric="PPM",
+        headline_formula=HeadlineFormula(
+            numerator="Rej. Lot", denominator="Insp. Lot", scale=1_000_000.0
+        ),
+        protected_terms=("PPM", "IQC", "TTL", "SEC", "TNP", "SKD", "CKD"),
+        notes="Three tables side by side; the PPM row is never labelled.",
     ),
+    # --- OQC / FIELD: no real workbook yet --------------------------------- #
+    # These come from the written specification only.  They are marked
+    # provisional on purpose: nothing about them may be treated as known until
+    # the real files arrive (Sprint 1 scope decision).
     "OQC": DepartmentSchema(
         code="OQC",
         label="Outgoing Quality Control",
         sections=("SEC", "TNP", "TECPLAM"),
-        subgroups=("Total", "TSI", "Packing"),
         metrics=("PPM", "Def.", "Insp.", "Target", "Result"),
-        protected_terms=("SEC", "TNP", "TECPLAM", "TSI", "PPM"),
+        protected_terms=("SEC", "TNP", "TECPLAM", "PPM"),
+        provisional=True,
+        notes="Structure not confirmed — waiting for the real OQC workbook.",
     ),
     "FIELD": DepartmentSchema(
         code="FIELD",
         label="Field Quality",
         sections=("ASR", "CASR"),
-        subgroups=("MX", "Mobile"),
         metrics=("Target", "Result", "PPM", "Rate"),
-        protected_terms=("ASR", "CASR", "MX", "Mobile"),
-        notes="ASR and CASR usually share one raw data file, side by side.",
+        protected_terms=("ASR", "CASR"),
+        provisional=True,
+        notes="Structure not confirmed — waiting for the real FIELD workbook.",
     ),
 }
 

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { Topbar } from '@/components/layout/Topbar'
 import { Department } from '@/pages/Department'
 import { Home } from '@/pages/Home'
+import { Import } from '@/pages/Import'
 import { Settings } from '@/pages/Settings'
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/department/:code" element={<Department />} />
+          <Route path="/department/:code/import" element={<Import />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

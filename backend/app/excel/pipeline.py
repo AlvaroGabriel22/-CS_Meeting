@@ -20,9 +20,15 @@ from .model import ParsedSheet, ParsedWorkbook, TableShape
 from .normalizer import normalize_table
 from .parser import parse_workbook
 from .regions import find_regions
+from .verification import apply_checks
 from .version import PARSER_VERSION
 
 logger = logging.getLogger(__name__)
+
+
+def _is_tabular(table) -> bool:
+    """A raw-data table has numbers in it; a note or a legend does not."""
+    return bool(table.meta.get("numericCells")) or bool(table.periods)
 
 
 def parse_file(path: str | Path, department: str | None = None) -> ParsedWorkbook:
@@ -47,11 +53,17 @@ def parse_file(path: str | Path, department: str | None = None) -> ParsedWorkboo
             try:
                 interpretation = interpret_region(sheet, rect, schema)
                 table = normalize_table(sheet, interpretation, department=department)
+                table = apply_checks(table, schema)
             except Exception:  # one broken region must not lose the whole file
                 logger.exception("region %s of sheet %r failed", rect.a1, sheet.name)
                 parsed_sheet.warnings.append(f"region_failed:{rect.a1}")
                 continue
             if table.shape is TableShape.FRAGMENT and not table.cells:
+                continue
+            if not _is_tabular(table):
+                # prose blocks (a README, a note, a legend) are not raw data
+                parsed_sheet.warnings.append(f"skipped_non_tabular_region:{rect.a1}")
+                logger.info("skipped non-tabular region %s of %r", rect.a1, sheet.name)
                 continue
             parsed_sheet.tables.append(table)
         logger.info(

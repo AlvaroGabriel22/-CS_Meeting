@@ -106,6 +106,9 @@ class PresentationVersion(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
     published_at: Mapped[datetime | None] = mapped_column(DateTime)
     parent_version_id: Mapped[int | None] = mapped_column(ForeignKey("presentation_versions.id"))
+    #: what this snapshot shows — periods, table names, parser version
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    warnings: Mapped[list] = mapped_column(JSON, default=list)
 
     presentation: Mapped[Presentation] = relationship(back_populates="versions")
     imports: Mapped[list["DepartmentData"]] = relationship(

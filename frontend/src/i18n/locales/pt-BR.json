@@ -69,5 +69,28 @@
     "saveVersion": "Salvar versão",
     "sourceRange": "Intervalo de origem",
     "parserVersion": "Versão do parser"
+  },
+  "import": {
+    "title": "Importação de raw data",
+    "subtitle": "Envie a planilha do departamento, confira o que o parser entendeu e salve a versão.",
+    "chooseFile": "Escolher arquivo",
+    "noFile": "Nenhum arquivo selecionado",
+    "parsing": "Interpretando…",
+    "preview": "Prévia do parser",
+    "parserVersion": "Parser {{version}}",
+    "reused": "já interpretado, resultado reutilizado",
+    "clean": "Sem avisos",
+    "warningCount": "{{count}} aviso(s)",
+    "tablesDetected": "Tabelas detectadas",
+    "periodsDetected": "Períodos detectados",
+    "version": "Versão",
+    "notSavedYet": "Ainda não salva",
+    "table": "Tabela",
+    "hierarchy": "Hierarquia",
+    "rows": "Linhas",
+    "columns": "Colunas",
+    "periodsShort": "Períodos",
+    "saved": "Salvo como versão {{version}}",
+    "open": "Importar raw data"
   }
 }

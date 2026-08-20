@@ -64,8 +64,11 @@ def test_years(token: str, year: int) -> None:
     assert facets is not None and facets.year == year
 
 
-@pytest.mark.parametrize("token,quarter", [("Q3", 3), ("3Q", 3), ("T3", 3), ("3분기", 3)])
-def test_quarters(token: str, quarter: int) -> None:
+@pytest.mark.parametrize(
+    "token,quarter", [("Q3", "3Q"), ("3Q", "3Q"), ("T3", "3Q"), ("3분기", "3Q"), ("Q4", "4Q")]
+)
+def test_quarters_are_canonical_labels(token: str, quarter: str) -> None:
+    """However the file spells it, the model says "3Q"."""
     facets = match_token(token)
     assert facets is not None and facets.quarter == quarter
 
@@ -109,3 +112,56 @@ def test_week_shift_changes_nothing_structurally() -> None:
 def test_period_sequence_detection_for_transposed_tables() -> None:
     assert looks_like_period_sequence(["W30", "W31", "W32", "W33"])
     assert not looks_like_period_sequence(["SEC", "TNP", "TECPLAM"])
+
+
+# --------------------------------------------------------------------------- #
+# Canonical quarters
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    "month,quarter",
+    [
+        (1, "1Q"), (2, "1Q"), (3, "1Q"),
+        (4, "2Q"), (5, "2Q"), (6, "2Q"),
+        (7, "3Q"), (8, "3Q"), (9, "3Q"),
+        (10, "4Q"), (11, "4Q"), (12, "4Q"),
+    ],
+)
+def test_every_month_maps_to_its_quarter(month: int, quarter: str) -> None:
+    from app.excel.model import QUARTER_OF_MONTH, Period, PeriodKind
+    from app.excel.period_engine import enrich
+
+    assert QUARTER_OF_MONTH[month] == quarter
+    resolved = enrich(Period(PeriodKind.MONTH, "x", month=month), 2026)
+    assert resolved.quarter == quarter
+    assert resolved.quarter_number == int(quarter[0])
+
+
+def test_quarter_label_helpers_round_trip() -> None:
+    from app.excel.model import quarter_label, quarter_number
+
+    assert [quarter_label(n) for n in (1, 2, 3, 4)] == ["1Q", "2Q", "3Q", "4Q"]
+    assert quarter_label("3Q") == "3Q" and quarter_label(0) is None and quarter_label(None) is None
+    assert [quarter_number(label) for label in ("1Q", "4Q")] == [1, 4]
+    assert quarter_number(None) is None
+
+
+def test_quarter_covers_its_months_and_sorts_deterministically() -> None:
+    from app.excel.model import Period, PeriodKind
+
+    q4 = Period(PeriodKind.QUARTER, "4Q", year=2026, quarter="4Q")
+    november = Period(PeriodKind.MONTH, "Nov", year=2026, month=11, quarter="4Q")
+    january = Period(PeriodKind.MONTH, "Jan", year=2026, month=1, quarter="1Q")
+
+    assert q4.months == (10, 11, 12)
+    assert q4.contains(november) and not q4.contains(january)
+    assert q4.sort_key == "2026-Q4"  # ordinal stays in the key, label stays canonical
+    assert Period(PeriodKind.QUARTER, "1Q", year=2026, quarter="1Q").sort_key == "2026-Q1"
+
+
+def test_quarter_reaches_the_wire_as_a_label() -> None:
+    from app.excel.model import Period, PeriodKind
+
+    payload = Period(PeriodKind.QUARTER, "3Q", year=2026, quarter="3Q").to_dict()
+    assert payload["quarter"] == "3Q"
+    assert payload["quarterNumber"] == 3
+    assert payload["sortKey"] == "2026-Q3"

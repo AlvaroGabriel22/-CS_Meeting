@@ -49,7 +49,8 @@ def test_period_identity_is_stable_across_files(fixture_files: dict[str, Path]) 
     shared = set(keys_b) & set(keys_c)
     assert {"W33", "W34", "Aug", "2026"} <= shared
     assert all(keys_b[label] == keys_c[label] for label in shared)
-    assert keys_c["W34"] == "0000-W34" and keys_c["Sep"] == "0000-M09"
+    # the period engine gives undated periods the table's reporting year
+    assert keys_c["W34"] == "2026-W34" and keys_c["Sep"] == "2026-M09"
 
 
 def test_no_dataset_needs_a_code_path_of_its_own(fixture_files: dict[str, Path]) -> None:

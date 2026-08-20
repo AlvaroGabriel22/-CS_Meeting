@@ -11,7 +11,7 @@ from app.db.base import get_session
 from app.db.models import Department, DepartmentData, TableDefinition
 from app.schemas.imports import ImportOut
 from app.schemas.table import InterpretationOut, TableOut
-from app.services import serializers
+from app.services import presentation_service, serializers
 from app.services.import_service import import_raw_data
 from app.services.interpretation import interpretation_view
 
@@ -22,6 +22,7 @@ async def _handle_upload(
     department: Department,
     file: UploadFile,
     force: bool,
+    create_version: bool,
     session: Session,
 ) -> ImportOut:
     payload = await file.read()
@@ -34,7 +35,14 @@ async def _handle_upload(
         force_reparse=force,
     )
     session.flush()
-    return serializers.import_out(result.data, reused=result.reused)
+
+    version = None
+    if create_version:
+        version = presentation_service.snapshot_for_import(
+            session, department=department, data=result.data
+        )
+        session.flush()
+    return serializers.import_out(result.data, reused=result.reused, version=version)
 
 
 @router.post("/uploads", response_model=ImportOut, status_code=201)
@@ -42,15 +50,20 @@ async def create_upload(
     department: Department = Form(...),
     file: UploadFile = File(...),
     force: bool = Form(False),
+    # the wire format is camelCase everywhere, form fields included
+    create_version: bool = Form(True, alias="createVersion"),
     session: Session = Depends(get_session),
 ) -> ImportOut:
-    """Upload a raw workbook: validated, stored, parsed and persisted.
+    """Upload a raw workbook: validated, stored, parsed, persisted, snapshotted.
 
-    An identical file (same content hash, same parser version) is *not* parsed
-    twice — the previous import is returned with ``reused: true``.  Pass
-    ``force=true`` to parse again anyway.
+    * an identical file (same content hash, same parser version) is not parsed
+      twice — the previous import comes back with ``reused: true``
+      (``force=true`` parses anyway);
+    * ``createVersion=false`` parses and returns the preview **without** adding
+      a version, which is what the import screen uses before the user confirms.
+      The confirmation call costs nothing extra thanks to the reuse above.
     """
-    return await _handle_upload(department, file, force, session)
+    return await _handle_upload(department, file, force, create_version, session)
 
 
 @router.post("/imports", response_model=ImportOut, status_code=201, include_in_schema=False)
@@ -58,10 +71,12 @@ async def create_import(
     department: Department = Form(...),
     file: UploadFile = File(...),
     force: bool = Form(False),
+    # the wire format is camelCase everywhere, form fields included
+    create_version: bool = Form(True, alias="createVersion"),
     session: Session = Depends(get_session),
 ) -> ImportOut:
     """Alias of ``POST /api/uploads`` (kept so both names work)."""
-    return await _handle_upload(department, file, force, session)
+    return await _handle_upload(department, file, force, create_version, session)
 
 
 @router.get("/imports", response_model=list[ImportOut])
