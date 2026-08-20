@@ -5,8 +5,13 @@ import type { Period } from '@/types/api'
  * Period picker driven entirely by the model.
  *
  * The list is whatever the snapshot holds — a month more, a quarter that just
- * closed, a week — and it is ordered by the engine's `sortKey`, while the label
- * shown stays the semantic one ("Aug", "3Q").
+ * closed, a week — **in the order the API returned it**: the period engine owns
+ * ordering (`order=file` keeps the workbook's columns, `order=chronological`
+ * applies the engine's sortKey rules). Re-sorting `sortKey` as a string here
+ * would be wrong, because `2026-M08` sorts before `2026-Q1` alphabetically
+ * while August comes after the first quarter.
+ *
+ * The label shown stays the semantic one ("Aug", "3Q").
  */
 export function PeriodSelect({
   periods,
@@ -21,8 +26,6 @@ export function PeriodSelect({
   label: string
   id: string
 }) {
-  const ordered = [...periods].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-
   return (
     <label htmlFor={id} className="flex flex-col gap-1 text-xs text-ink-500">
       {label}
@@ -35,7 +38,7 @@ export function PeriodSelect({
           'focus:border-brand-300 focus:outline-none',
         )}
       >
-        {ordered.map((period) => (
+        {periods.map((period) => (
           <option key={period.sortKey + period.label} value={period.label}>
             {period.label}
             {period.quarter && period.kind === 'month' ? ` · ${period.quarter}` : ''}
@@ -46,7 +49,9 @@ export function PeriodSelect({
   )
 }
 
-/** A plain option list, for the model dimensions (table, metric, …). */
+export type Option = string | { value: string; label: string }
+
+/** A plain option list, for the model dimensions (table, metric, version…). */
 export function OptionSelect({
   options,
   value,
@@ -55,13 +60,17 @@ export function OptionSelect({
   id,
   allowEmpty,
 }: {
-  options: string[]
+  options: Option[]
   value: string
   onChange: (value: string) => void
   label: string
   id: string
   allowEmpty?: string
 }) {
+  const entries = options.map((option) =>
+    typeof option === 'string' ? { value: option, label: option } : option,
+  )
+
   return (
     <label htmlFor={id} className="flex flex-col gap-1 text-xs text-ink-500">
       {label}
@@ -72,9 +81,9 @@ export function OptionSelect({
         className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink-900 focus:border-brand-300 focus:outline-none"
       >
         {allowEmpty !== undefined && <option value="">{allowEmpty}</option>}
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+        {entries.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>

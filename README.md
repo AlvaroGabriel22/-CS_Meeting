@@ -8,7 +8,7 @@ Import the departments' raw Excel files, read their structure automatically,
 render tables and charts, write Issue Reports, translate with AI, version the
 work and export PPT/PDF. Local, no login, SQLite.
 
-## Status — Sprint 2 (IQC rendering with structural fidelity)
+## Status — Sprint 5 (issue reports, trends, PDF/PPT export)
 
 | Area | State |
 | --- | --- |
@@ -27,11 +27,21 @@ work and export PPT/PDF. Local, no login, SQLite.
 | **IQC import screen** (upload → preview → save version) | ✅ done |
 | **Render model** (merges as spans, hierarchy as depth, borders from the file) | ✅ done |
 | **IQC tables rendered in the browser** from the saved snapshot | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 212 tests |
-| Charts, Issue Report editor, AI provider, exports | ⏳ next sprints |
+| **Charts over the normalized model** (period axis from the file) | ✅ done |
+| **Period comparison** with honest deltas (no percentage over a zero baseline) | ✅ done |
+| **Version comparison** — same row, same period, two snapshots | ✅ done |
+| **Version selector driving the whole page** (tables, charts, KPIs, insights) | ✅ done |
+| **Executive KPI strip** with reference period, target when the file has one | ✅ done |
+| **Executive insights** — ranked sentences, no invented causes, full provenance | ✅ done |
+| **Trend analysis** over 3+ comparable periods, polarity-aware | ✅ done |
+| **Issue reports** — editable text, status, images, provable numbers | ✅ done |
+| **PDF export** — structured, searchable, tables and images preserved | ✅ done |
+| **PPT export** — editable text, native chart, native tables | ✅ done |
+| Tests + generated raw-data fixtures | ✅ 314 tests |
+| Rich Issue Report editor, AI translation provider | ⏳ next sprints |
 | OQC / FIELD structures | ⏳ waiting for the real files |
 
-Read [`docs/sprint-2-report.md`](docs/sprint-2-report.md) for the latest
+Read [`docs/sprint-5-report.md`](docs/sprint-5-report.md) for the latest
 results, limitations and next steps.
 
 ## Quick start
@@ -57,9 +67,10 @@ VITE_API_PROXY=http://127.0.0.1:8100 npm run dev
 
 * `http://localhost:5173/department/IQC/import` — choose the workbook, read what
   the parser understood (tables, periods, hierarchy, warnings), save the version.
-* `http://localhost:5173/department/IQC` — the saved snapshot rendered:
-  `TTL`, `SEC` and `TNP` with their merged groups, indented sub-groups and the
-  period axis the file happens to hold.
+* `http://localhost:5173/department/IQC` — the executive page: pick a version
+  and a period, and the KPI strip, the insights, the issue reports, the charts,
+  the tables and the comparisons all follow that one selection. **Export PDF**
+  and **Export PPT** take exactly that view to the meeting.
 
 ## See the pipeline work
 
@@ -92,7 +103,7 @@ warnings and **ambiguities**, plus a summarized JSON of the normalized model.
 ## Tests
 
 ```bash
-cd backend && .venv/bin/python -m pytest -q     # 212 passed
+cd backend && .venv/bin/python -m pytest -q     # 314 passed
 cd frontend && npm run build
 ```
 
@@ -108,6 +119,9 @@ cd frontend && npm run build
 * [`docs/sprint-0-report.md`](docs/sprint-0-report.md) — Sprint 0 report
 * [`docs/sprint-1-report.md`](docs/sprint-1-report.md) — Sprint 1 report
 * [`docs/sprint-2-report.md`](docs/sprint-2-report.md) — Sprint 2 report
+* [`docs/sprint-3-report.md`](docs/sprint-3-report.md) — Sprint 3 report
+* [`docs/sprint-4-report.md`](docs/sprint-4-report.md) — Sprint 4 report
+* [`docs/sprint-5-report.md`](docs/sprint-5-report.md) — Sprint 5 report
 
 ## The one rule
 

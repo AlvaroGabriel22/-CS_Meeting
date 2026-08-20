@@ -49,7 +49,10 @@ export function QualityChart({
   const Chart = kind === 'bar' ? BarChart : LineChart
 
   return (
-    <div style={{ height }}>
+    // the legend is measured by the chart library and can lag behind a
+    // shrinking container: clipping here keeps a stale measurement from
+    // pushing the page sideways on a narrow screen
+    <div style={{ height }} className="overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <Chart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 8 }}>
           <CartesianGrid stroke="#e3eaf3" vertical={false} />
@@ -87,7 +90,15 @@ export function QualityChart({
               fontSize: 12,
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Legend
+            wrapperStyle={{
+              fontSize: 12,
+              width: '100%',
+              maxWidth: '100%',
+              lineHeight: '1.6',
+              paddingTop: 4,
+            }}
+          />
           {series.map((item, index) =>
             kind === 'bar' ? (
               <Bar

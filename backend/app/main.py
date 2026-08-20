@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import analytics, health, imports, presentations
+from app.api.routes import analytics, exports, health, imports, issues, presentations
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
@@ -47,6 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(imports.router)
     app.include_router(presentations.router)
     app.include_router(analytics.router)
+    app.include_router(issues.router)
+    app.include_router(exports.router)
     return app
 
 

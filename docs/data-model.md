@@ -130,3 +130,62 @@ Alembic, SQLite-friendly (`render_as_batch=True`):
 ```bash
 cd backend && .venv/bin/alembic upgrade head
 ```
+
+
+## 3. Analytical projections (Sprint 3)
+
+Nothing new is stored: analytics are computed from the same tables.
+
+```
+Series          selector {table, category, subcategory, metric, seriesType}
+                points[] {period, value, display, valueType, source}
+                provenance {sheet, sourceRange, tableId}
+
+Delta           {valueA, valueB, delta, deltaPercent|null,
+                 direction, severity, status}
+
+ExecutiveInsight {title, department, table, category, subcategory, metric,
+                  period, referencePeriod, value, previousValue,
+                  delta, deltaPercent, direction, severity,
+                  source, sourceRange, versionId, versionNumber}
+```
+
+* the **selector is the identity** of a series across snapshots (ADR-0021);
+* `deltaPercent` is `null` whenever the baseline is missing or zero, with a
+  `status` saying which (ADR-0022);
+* `severity` only appears when the department declares the metric's polarity
+  (`DepartmentSchema.polarity`);
+* every projection keeps `source` (the cell) and `sourceRange` (the block), so
+  a number on a chart can always be traced back to the workbook and the version.
+
+
+## 4. Issue reports (Sprint 5)
+
+| Table | Holds |
+| --- | --- |
+| `issues` | one issue: its selector, its editorial text, the numbers copied from the snapshot, and its provenance |
+| `issue_media` | images attached as evidence, pointing at `assets` |
+
+```
+issues
+├── version_id, department              which snapshot it belongs to
+├── period, reference_period            resolved by the period engine
+├── table_name, category, subcategory, metric, series_type
+├── title, description_doc (TipTap), description_text, translation_key
+├── severity (info|low|medium|high), status (open|in_progress|resolved|closed)
+├── value, previous_value, delta, delta_percent, target, direction, trend
+└── source_cell, source_range, origin   provenance of every number
+issue_media ──▶ assets (bytes on disk, metadata in SQLite)
+```
+
+Rules (ADR-0029):
+
+* the **editorial** half is editable; an edit that names an analytical field is
+  refused by name;
+* the **analytical** half is recomputed from the snapshot at creation — an
+  issue can always be proved against `sheet!cell` of its version;
+* `translation_key` is the content hash of the description, so the translation
+  cache of ADR-0007 applies without further work;
+* status only moves when a person moves it.
+
+Exports are written to `data/exports/` and never overwrite a snapshot.

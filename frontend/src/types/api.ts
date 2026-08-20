@@ -563,3 +563,191 @@ export interface ComparisonResponse {
   warnings: string[]
   meta: Record<string, unknown>
 }
+
+/* -------------------------------------------------------------------------- *
+ * Executive layer (Sprint 4) — KPIs and ranked insights.
+ * -------------------------------------------------------------------------- */
+export type TargetStatus = 'above' | 'below' | 'at'
+export type ComparisonBasis = 'same_kind' | 'preceding' | 'none'
+export type Polarity = 'lower_is_better' | 'higher_is_better' | 'neutral'
+
+export interface Kpi {
+  trend?: Trend | null
+  key: string
+  label: string
+  selector: SeriesSelector
+  period: Period
+  value: number | null
+  display: string | null
+  valueType: ValueType
+  previousPeriod: Period | null
+  previousValue: number | null
+  previousDisplay: string | null
+  delta: number | null
+  deltaPercent: number | null
+  direction: Direction
+  severity: Severity
+  status: DeltaStatus
+  /** declared by the department, never guessed */
+  polarity: Polarity | null
+  /** only when the workbook itself carries a target */
+  target: number | null
+  targetDisplay: string | null
+  targetStatus: TargetStatus | null
+  targetBreached: boolean
+  source: string | null
+  sourceRange: string | null
+}
+
+export interface Insight {
+  kind: string
+  trend?: Trend | null
+  /** i18n key — the sentence is rendered in the user's language */
+  template: string
+  params: Record<string, string | number | null>
+  /** English rendering, used as a fallback and by the exporters */
+  text: string
+  score: number
+  direction: Direction
+  severity: Severity
+  status: DeltaStatus
+  value: number | null
+  previousValue: number | null
+  displayValue: string | null
+  displayPrevious: string | null
+  delta: number | null
+  deltaPercent: number | null
+  target: number | null
+  targetStatus: TargetStatus | null
+  department: Department | null
+  table: string | null
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  seriesType: string | null
+  period: Period | null
+  referencePeriod: Period | null
+  source: string | null
+  sourceRange: string | null
+  versionId: number | null
+  versionNumber: number | null
+}
+
+export interface ExecutiveView {
+  versionId: number
+  versionNumber: number | null
+  versionLabel: string | null
+  department: Department
+  period: Period | null
+  previousPeriod: Period | null
+  comparisonBasis: ComparisonBasis
+  metric: string | null
+  periods: Period[]
+  options: SelectorOptions
+  kpis: Kpi[]
+  insights: Insight[]
+  warnings: string[]
+}
+
+/* -------------------------------------------------------------------------- *
+ * Trends and issue reports (Sprint 5).
+ * -------------------------------------------------------------------------- */
+export type TrendClassification =
+  | 'rising'
+  | 'falling'
+  | 'stable'
+  | 'volatile'
+  | 'insufficient_data'
+export type TrendQuality = 'improving' | 'worsening' | 'stable' | 'neutral' | 'unknown'
+
+export interface Trend {
+  classification: TrendClassification
+  quality: TrendQuality
+  points: number
+  granularity: string | null
+  periodLabels: string[]
+  values: number[]
+  consecutive: number
+  firstValue: number | null
+  lastValue: number | null
+  change: number | null
+  changePercent: number | null
+  polarity: Polarity | null
+}
+
+export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type IssueSeverity = 'info' | 'low' | 'medium' | 'high'
+
+export interface IssueMedia {
+  id: number
+  assetId: number
+  url: string
+  mimeType: string
+  sizeBytes: number
+  caption: string | null
+  orderIndex: number
+}
+
+export interface Issue {
+  id: number
+  versionId: number
+  department: Department
+  period: Period | null
+  referencePeriod: Period | null
+  table: string | null
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+  seriesType: string | null
+  /** editorial — the only half an edit may touch */
+  title: string
+  description: string | null
+  descriptionDoc: Record<string, unknown>
+  translationKey: string | null
+  language: string
+  severity: IssueSeverity
+  status: IssueStatus
+  /** analytical — read from the snapshot, never edited by hand */
+  value: number | null
+  previousValue: number | null
+  delta: number | null
+  deltaPercent: number | null
+  target: number | null
+  direction: Direction | null
+  analyticalSeverity: Severity | null
+  trend: Trend | null
+  sourceCell: string | null
+  sourceRange: string | null
+  origin: Record<string, unknown> | null
+  media: IssueMedia[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IssueCreate {
+  period?: string
+  table?: string
+  category?: string
+  subcategory?: string
+  metric?: string
+  title?: string
+  description?: string
+  severity?: IssueSeverity
+  origin?: Record<string, unknown>
+}
+
+export interface IssueUpdate {
+  title?: string
+  description?: string
+  severity?: IssueSeverity
+  status?: IssueStatus
+}
+
+export interface ExportRequest {
+  period?: string
+  table?: string
+  metric?: string
+  compareWith?: number
+  includeTables?: boolean
+  includeCharts?: boolean
+}

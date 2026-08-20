@@ -121,5 +121,84 @@
       "missing_b": "no value in B",
       "undefined_percent": "no percentage: baseline is zero"
     }
+  },
+  "executive": {
+    "version": "Version",
+    "period": "Period",
+    "metric": "Metric",
+    "table": "Table",
+    "kpis": "Key indicators",
+    "insights": "Executive insights",
+    "noInsights": "Nothing to compare in this period yet.",
+    "noReference": "No reference period",
+    "target": "Target",
+    "targetStatus": {
+      "above": "above target",
+      "below": "below target",
+      "at": "on target"
+    },
+    "basis": {
+      "same_kind": "vs {{period}}",
+      "preceding": "vs {{period}} (previous column)",
+      "none": "no reference"
+    },
+    "compareVersions": "Version comparison",
+    "warnings": {
+      "no_target_in_snapshot": "This workbook carries no target.",
+      "reference_period_is_preceding_column": "No earlier period of the same kind in the file: compared with the previous column.",
+      "no_reference_period_in_snapshot": "This is the first period in the file.",
+      "no_period_in_snapshot": "No period was detected in this snapshot."
+    }
+  },
+  "insights": {
+    "metric_moved_up": "{{label}} rose {{percent}} in {{period}} ({{from}} → {{to}}).",
+    "metric_moved_down": "{{label}} fell {{percent}} in {{period}} ({{from}} → {{to}}).",
+    "metric_moved_absolute_up": "{{label}} rose by {{delta}} in {{period}} ({{from}} → {{to}}).",
+    "metric_moved_absolute_down": "{{label}} fell by {{delta}} in {{period}} ({{from}} → {{to}}).",
+    "largest_movement_up": "{{category}} showed the largest increase in {{metric}} among the {{count}} categories analysed ({{percent}} in {{period}}).",
+    "largest_movement_down": "{{category}} showed the largest decrease in {{metric}} among the {{count}} categories analysed ({{percent}} in {{period}}).",
+    "target_above": "{{label}} is above target in {{period}} ({{value}} vs {{target}}).",
+    "target_below": "{{label}} is below target in {{period}} ({{value}} vs {{target}}).",
+    "trend_up": "{{label}} has risen across {{points}} consecutive {{granularity}}s ({{from}} → {{to}}).",
+    "trend_down": "{{label}} has fallen across {{points}} consecutive {{granularity}}s ({{from}} → {{to}})."
+  },
+  "issues": {
+    "title": "Issue reports",
+    "empty": "No issue raised for this period yet.",
+    "raiseFromInsight": "Raise an issue from an insight",
+    "raise": "Raise issue",
+    "status": "Status",
+    "severity": "Severity",
+    "edit": "Edit",
+    "attach": "Attach image",
+    "trend": "Trend",
+    "descriptionPlaceholder": "What is being done about it?",
+    "statuses": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "severities": {
+      "info": "Info",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
+  },
+  "trends": {
+    "rising": "rising",
+    "falling": "falling",
+    "stable": "stable",
+    "volatile": "volatile",
+    "insufficient_data": "not enough history",
+    "improving": "improving",
+    "worsening": "worsening",
+    "neutral": "neutral",
+    "unknown": "unclassified"
+  },
+  "export": {
+    "pdf": "Export PDF",
+    "ppt": "Export PPT"
   }
 }

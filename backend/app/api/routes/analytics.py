@@ -13,9 +13,13 @@ from sqlalchemy.orm import Session
 from app.core.errors import ValidationError
 from app.db.base import get_session
 from app.db.models import PresentationVersion
-from app.schemas.analytics import ComparisonResponseOut, SeriesResponseOut
+from app.schemas.analytics import (
+    ComparisonResponseOut,
+    ExecutiveViewOut,
+    SeriesResponseOut,
+)
 from app.schemas.table import TableOut
-from app.services import analytics, presentation_service, serializers
+from app.services import analytics, executive, presentation_service, serializers
 
 router = APIRouter(prefix="/api/versions", tags=["analytics"])
 
@@ -171,3 +175,41 @@ def compare_versions(
         }
     )
     return ComparisonResponseOut.model_validate(payload)
+
+
+@router.get("/{version_id}/analytics/executive", response_model=ExecutiveViewOut)
+def get_executive_view(
+    version_id: int,
+    period: str | None = None,
+    table: str | None = None,
+    metric: str | None = None,
+    session: Session = Depends(get_session),
+) -> ExecutiveViewOut:
+    """KPIs and ranked insights for one snapshot and one period.
+
+    ``period`` defaults to the last one the file holds; the previous period is
+    resolved by the engine (same granularity, present in the file).  Targets
+    appear only when the workbook itself carries them.
+    """
+    version = presentation_service.get_version(session, version_id)
+    tables = _tables_of(version)
+    department = _department_of(version)
+
+    payload = executive.build_executive_view(
+        tables,
+        period_label=period,
+        table=table,
+        metric=metric,
+        department=department,
+        version_id=version.id,
+        version_number=version.number,
+    )
+    payload.update(
+        {
+            "versionId": version.id,
+            "versionNumber": version.number,
+            "versionLabel": version.label,
+            "department": department,
+        }
+    )
+    return ExecutiveViewOut.model_validate(payload)

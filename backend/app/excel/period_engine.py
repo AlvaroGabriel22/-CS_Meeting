@@ -119,3 +119,21 @@ def group_by_year(periods: list[Period]) -> dict[int | None, list[Period]]:
 def covering(period: Period, candidates: list[Period]) -> list[Period]:
     """The candidates that contain ``period`` (Aug -> [3Q, 2026])."""
     return [candidate for candidate in candidates if candidate.contains(period)]
+
+
+def previous_period(period: Period, candidates: list[Period]) -> Period | None:
+    """The period immediately before this one, **of the same kind**.
+
+    August's predecessor is July when the file shows it, not the third quarter:
+    comparing a month with a quarter would compare a month with three.  When
+    the file holds no earlier period of the same kind, there is no predecessor
+    and the caller must say so instead of inventing one.
+    """
+    same_kind = [
+        candidate
+        for candidate in candidates
+        if candidate.kind is period.kind
+        and candidate.label != period.label
+        and sort_key(candidate) < sort_key(period)
+    ]
+    return max(same_kind, key=sort_key) if same_kind else None

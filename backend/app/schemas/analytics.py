@@ -151,3 +151,97 @@ class ComparisonResponseOut(CamelModel):
     insights: list[ExecutiveInsightOut] = []
     warnings: list[str] = []
     meta: dict[str, Any] = {}
+
+
+# --------------------------------------------------------------------------- #
+# Executive layer (Sprint 4)
+# --------------------------------------------------------------------------- #
+TargetStatusLiteral = Literal["above", "below", "at"]
+
+
+class KpiOut(CamelModel):
+    """One headline reading, derived from the model — never invented."""
+
+    key: str
+    label: str
+    selector: SeriesSelectorOut
+    period: PeriodOut
+    value: float | None = None
+    display: str | None = None
+    value_type: str = "empty"
+    #: the previous period *of the same kind* present in the file, if any
+    previous_period: PeriodOut | None = None
+    previous_value: float | None = None
+    previous_display: str | None = None
+    delta: float | None = None
+    delta_percent: float | None = None
+    direction: DirectionLiteral = "unknown"
+    severity: SeverityLiteral = "unknown"
+    status: StatusLiteral = "ok"
+    #: "lower_is_better" / "higher_is_better" / "neutral" — declared, not guessed
+    polarity: str | None = None
+    #: only present when the workbook itself carries a target
+    target: float | None = None
+    target_display: str | None = None
+    target_status: TargetStatusLiteral | None = None
+    target_breached: bool = False
+    source: str | None = None
+    source_range: str | None = None
+
+
+class InsightOut(CamelModel):
+    """A statement a meeting can read, with everything needed to prove it.
+
+    ``template`` + ``params`` let the UI render it in any language; ``text`` is
+    the English rendering used by tests and, later, by the exporters.
+    """
+
+    kind: str
+    template: str
+    params: dict[str, Any] = {}
+    text: str
+    #: deterministic relevance (ADR-0027)
+    score: float = 0.0
+    direction: DirectionLiteral = "unknown"
+    severity: SeverityLiteral = "unknown"
+    status: StatusLiteral = "ok"
+    value: float | None = None
+    previous_value: float | None = None
+    display_value: str | None = None
+    display_previous: str | None = None
+    delta: float | None = None
+    delta_percent: float | None = None
+    target: float | None = None
+    target_status: TargetStatusLiteral | None = None
+    # provenance
+    department: DepartmentLiteral | None = None
+    table: str | None = None
+    category: str | None = None
+    subcategory: str | None = None
+    metric: str | None = None
+    series_type: str | None = None
+    period: PeriodOut | None = None
+    reference_period: PeriodOut | None = None
+    source: str | None = None
+    source_range: str | None = None
+    version_id: int | None = None
+    version_number: int | None = None
+
+
+class ExecutiveViewOut(CamelModel):
+    """The executive header of a department page, in one call."""
+
+    version_id: int
+    version_number: int | None = None
+    version_label: str | None = None
+    department: DepartmentLiteral
+    period: PeriodOut | None = None
+    previous_period: PeriodOut | None = None
+    #: "same_kind" (month vs month), "preceding" (the column before it) or "none"
+    comparison_basis: Literal["same_kind", "preceding", "none"] = "none"
+    metric: str | None = None
+    periods: list[PeriodOut] = []
+    options: SelectorOptionsOut = SelectorOptionsOut()
+    kpis: list[KpiOut] = []
+    insights: list[InsightOut] = []
+    warnings: list[str] = []

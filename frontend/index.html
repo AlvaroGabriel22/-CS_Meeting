@@ -3,9 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The application ships its own translations (en / pt-BR / ko).  Browser
+      auto-translation rewrites text nodes under React's feet, which both
+      contradicts the language the user picked and crashes rendering when a
+      node is swapped (observed with the export spinner).
+    -->
+    <meta name="google" content="notranslate" />
     <title>CS Meeting</title>
   </head>
-  <body>
+  <body class="notranslate">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

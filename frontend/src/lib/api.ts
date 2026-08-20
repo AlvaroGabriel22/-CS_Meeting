@@ -7,6 +7,11 @@ import type {
   Presentation,
   PresentationVersion,
   ComparisonResponse,
+  ExecutiveView,
+  ExportRequest,
+  Issue,
+  IssueCreate,
+  IssueUpdate,
   SeriesOrder,
   SeriesResponse,
   TableView,
@@ -92,6 +97,57 @@ export const api = {
       order?: SeriesOrder
     } = {},
   ) => request<SeriesResponse>(`/api/versions/${versionId}/analytics/series${query(params)}`),
+
+  /** KPIs and ranked insights for one snapshot and one period. */
+  getExecutiveView: (
+    versionId: number,
+    params: { period?: string; table?: string; metric?: string } = {},
+  ) => request<ExecutiveView>(`/api/versions/${versionId}/analytics/executive${query(params)}`),
+
+  /** Issues raised on a snapshot, optionally for one period. */
+  listIssues: (versionId: number, params: { period?: string; status?: string } = {}) =>
+    request<Issue[]>(`/api/versions/${versionId}/issues${query(params)}`),
+
+  createIssue: (versionId: number, payload: IssueCreate) =>
+    request<Issue>(`/api/versions/${versionId}/issues`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  /** Only the editorial half: title, description, severity, status. */
+  updateIssue: (versionId: number, issueId: number, payload: IssueUpdate) =>
+    request<Issue>(`/api/versions/${versionId}/issues/${issueId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+
+  attachIssueImage: (versionId: number, issueId: number, file: File, caption?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (caption) form.append('caption', caption)
+    return request<Issue>(`/api/versions/${versionId}/issues/${issueId}/media`, {
+      method: 'POST',
+      body: form,
+    })
+  },
+
+  /** Export what the page is showing; the browser downloads the file. */
+  exportView: async (versionId: number, format: 'pdf' | 'ppt', payload: ExportRequest) => {
+    const response = await fetch(`${BASE}/api/versions/${versionId}/export/${format}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({ message: response.statusText }))
+      throw Object.assign(new Error(body.message ?? 'Export failed'), { api: body })
+    }
+    const disposition = response.headers.get('content-disposition') ?? ''
+    const match = /filename="?([^";]+)"?/.exec(disposition)
+    return { blob: await response.blob(), filename: match?.[1] ?? `export.${format}` }
+  },
 
   /** Two periods of one snapshot. */
   comparePeriods: (

@@ -329,3 +329,229 @@ keeps both the meaning and the provenance.
 **Reversibility.** `inferredText` is a separate field: a UI that wants strict
 fidelity simply ignores it, and the day the workbook writes `Total` itself the
 value arrives as ordinary `text`.
+
+---
+
+## ADR-0021 — Analytics identify a row by meaning, not by position
+
+**Decision (Sprint 3).** A series is addressed by a *selector* —
+`table · category · subcategory · metric · seriesType` — and that selector is
+also its identity across snapshots. Endpoints are model-oriented
+(`/api/versions/{id}/analytics/series?table=TTL&metric=Rej.%20Lot`); there is no
+`/iqc/aug` and no `/iqc/sec`.
+
+**Why.** The same logical row sits in a different column every month. Comparing
+version 1 with version 2 works because both are looked up by what they mean:
+`Total · Rej. Lot` in `I4` of one file and `J4` of the other is one series with
+two readings, and both cell addresses travel in the payload.
+
+**Consequences.** A row that exists in one version and not in the other is
+reported as `missing_a`/`missing_b`, never as zero, and the response warns
+`rows_only_in_a` / `rows_only_in_b`.
+
+---
+
+## ADR-0022 — A delta is arithmetic; whether it is *good* needs configuration
+
+**Decision (Sprint 3).**
+
+* `delta = B − A` — always, when both values exist;
+* `deltaPercent = (B − A) / A × 100` — **only** when `A` is a real, non-zero
+  number; otherwise `null` with `status: "undefined_percent"`;
+* a missing side gives `status: "missing_a"` / `"missing_b"` and no numbers;
+* `direction` (`up`/`down`/`flat`) is a fact about the numbers;
+* `severity` (`positive`/`negative`) requires the department to declare the
+  metric's polarity (`DepartmentSchema.polarity`): for IQC, `PPM` and
+  `Rej. Lot` are `lower_is_better` and `Insp. Lot` is `neutral`. Without a
+  declaration the severity is `unknown` — never guessed from the metric's name.
+
+**Why.** A percentage against a zero baseline is not a number, and "up is bad"
+is domain knowledge, not arithmetic. Both had to be explicit rather than
+implied by a colour.
+
+---
+
+## ADR-0023 — Ordering belongs to the period engine, on both sides
+
+**Decision (Sprint 3).** The API returns the period axis already ordered —
+`order=file` keeps the workbook's columns, `order=chronological` applies the
+engine's rule (year, then granularity, then ordinal). The frontend renders the
+order it receives and never re-sorts.
+
+**Why.** A first attempt sorted `sortKey` as a string in the component, which
+put `2026-M08` before `2026-Q1` — August ahead of the first quarter. `sortKey`
+is a *key*, not a lexicographic ordering; only the engine knows how the
+granularities relate. One owner, one rule.
+
+---
+
+## ADR-0024 — ExecutiveInsight is built now, used later
+
+**Decision (Sprint 3).** Every comparison also returns `insights`: a ranked list
+of statements carrying title, department, table, category, subcategory, metric,
+period, reference period, both values, delta, percentage, direction, severity —
+**and** the origin (cell, source range, version). Nothing generates slides yet.
+
+**Why.** The executive presentation of a later sprint must be able to say "PPM
+of Imported·SKD fell 100% from 3Q to Aug" *and* prove it from cell `I9` of
+version 2. Deciding the shape now, while the data layer is fresh, is cheaper
+than retrofitting provenance later.
+
+---
+
+## ADR-0025 — The reference period is resolved, and its basis is stated
+
+**Decision (Sprint 4).** A KPI compares the selected period against:
+
+1. the previous period **of the same kind** present in the file (August against
+   July, `3Q` against `2Q`) — `comparisonBasis: "same_kind"`;
+2. failing that, the column immediately before it on the chronological axis,
+   whatever its granularity — `comparisonBasis: "preceding"`, surfaced in the
+   UI as "vs 3Q (previous column)" and as a warning;
+3. failing that, nothing — `"none"`, and the KPIs show no delta.
+
+**Why.** The real IQC sheet holds exactly one month (`Aug`) beside years and
+quarters, so a strict same-kind rule leaves the executive strip empty. Refusing
+to compare would be useless; comparing silently against a quarter would be
+dishonest. Naming the basis keeps both the reading and the caveat.
+
+**Consequences.** Nothing else in the system compares periods implicitly; the
+chart and the comparison table still take their two periods from the user.
+
+---
+
+## ADR-0026 — Generated sentences travel as template + params
+
+**Decision (Sprint 4).** An insight carries `template` (an i18n key such as
+`insights.metric_moved_up`), `params`, and an English `text` fallback. The UI
+renders the sentence in the user's language; the exporters will use `text`.
+
+The direction is part of the key (`_up` / `_down`) rather than a placeholder,
+because plain i18next has no ICU `select` — a first attempt rendered
+"PPM up} 188.2%" on screen, caught in the browser validation.
+
+**Why.** Insights are *generated content*, so they must exist in the three
+languages without an AI round-trip (ADR-0007 reserves the AI for user-authored
+text). Sentences assembled in the backend keep the wording next to the data
+that justifies it.
+
+---
+
+## ADR-0027 — Insight ranking is a documented formula
+
+**Decision (Sprint 4).**
+
+```
+score = min(|Δ%|, 300)
+      + 50  when the movement is in the declared wrong direction
+      + 25  when the value is on the wrong side of a target the file carries
+```
+
+Ties break by `|Δ|`, then by the sentence, so the order is stable across calls.
+
+**Why.** "Relevance" must be inspectable. Each term is something the data
+states: how much it moved, whether the department declared that direction bad
+(ADR-0022), and whether a target in the workbook was breached. The cap stops a
+percentage against a tiny baseline from drowning everything else.
+
+**Consequences.** No hidden weighting, no learned score. Changing the ranking
+means changing three numbers in `app/services/executive.py` and this ADR.
+
+---
+
+## ADR-0028 — The page owns version and period; panels are controlled
+
+**Decision (Sprint 4).** The department page holds `versionId`, `period`,
+`table` and `metric`, and passes them down. The Sprint 3 `AnalyticsPanel`,
+which owned its own selectors, was split into `ChartsPanel` and
+`ComparisonPanel`, both controlled.
+
+**Why.** Sprint 4 requires one selection to drive tables, charts, KPIs and
+insights together. Leaving the state inside a panel would have meant two
+sources of truth on the same screen — the chart showing one period while the
+KPI strip showed another.
+
+**What was preserved.** The analytical services, endpoints and the chart,
+comparison and selector components are unchanged: only where the state lives
+moved.
+
+---
+
+## ADR-0029 — An issue has two halves, and only one is editable
+
+**Decision (Sprint 5).** An issue report keeps its **editorial** half — title,
+description, severity, status, images — separate from its **analytical** half —
+period, value, previous value, delta, trend, target, origin cell and range.
+
+The editorial half is what an edit may touch. The analytical half is
+**recomputed from the snapshot** when the issue is created and never accepted
+from the client: `POST /issues` takes a *selector* (table, category,
+subcategory, metric, period) and the service reads the numbers itself. An edit
+carrying `value` is refused by name, not silently ignored.
+
+**Why.** An issue is an argument, and an argument that cites a number the file
+does not hold is worse than no issue at all. Recomputing means every issue can
+be traced to `sheet!cell` of a given version, months later.
+
+**Consequences.** The description is stored as a rich document (ADR-0006) with
+its content hash as `translationKey`, so the translation cache and the future
+TipTap editor both work without another migration. Images live in `assets`
+(bytes on disk) and are attached through `issue_media` as evidence, never as
+analytical data. Status is only ever moved by a person — a metric improving
+never resolves an issue.
+
+---
+
+## ADR-0030 — Both export formats read one context
+
+**Decision (Sprint 5).** `app/services/export/context.py` assembles what the
+page is showing — version, period, table, metric, KPIs, insights, issues with
+their images, chart series, tables and an optional version comparison — and
+both `pdf.py` and `powerpoint.py` render *that*. The export request carries the
+page's own selection, so a different period produces a different file.
+
+**Why.** A PDF that tells a different story from the screen is a bug the user
+only discovers in the meeting. One context makes the two formats structurally
+incapable of disagreeing.
+
+**Consequences.** Nothing is screenshotted: the PDF is built with ReportLab
+(text stays text, tables keep their spans, the chart is drawn natively) and the
+deck with python-pptx (native chart with its data behind it, native tables,
+editable text). The IQC tables keep merges, hierarchy and the empty headline
+cell — only the *representation* is adapted to the medium, never the model.
+
+---
+
+## ADR-0031 — Trend classification, and its place in the ranking
+
+**Decision (Sprint 5).** `app/services/trends.py` classifies a series as
+`rising` / `falling` / `stable` / `volatile` / `insufficient_data`:
+
+* only periods of the **same kind** are compared, and the **finest granularity
+  with at least three readings** is the one analysed (three months beat four
+  quarters, because the months are the current reading);
+* a step is *flat* when it moves less than **2%** of the previous value — the
+  threshold is a named constant (`FLAT_TOLERANCE`) so it can be argued with;
+* fewer than three comparable readings is `insufficient_data`, never a guess;
+* `quality` (`improving` / `worsening`) needs the metric's declared polarity;
+  a `neutral` metric is never judged and an undeclared one stays `unknown`.
+
+The ranking of ADR-0027 gains two terms: **+30** when the trend is worsening,
+**+10** when it is consistent but its quality cannot be judged.
+
+**Why.** "It went up this month" and "it has gone up for three months" are
+different statements, and only the second justifies a meeting's attention on
+its own. Both remain arithmetic — nothing here is generated or learned.
+
+---
+
+## ADR-0032 — The application translates itself; the browser must not
+
+**Decision (Sprint 5).** `index.html` declares `<meta name="google"
+content="notranslate">` and the body carries `class="notranslate"`.
+
+**Why.** The product ships its own translations (en / pt-BR / ko) chosen by the
+user. Chrome's auto-translation contradicted that choice *and* crashed React
+during the browser validation: rewriting text nodes under React made the export
+spinner throw `NotFoundError: insertBefore`. The two mechanisms cannot both own
+the text.

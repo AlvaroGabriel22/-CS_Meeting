@@ -73,6 +73,62 @@ def store_raw_file(payload: bytes, suffix: str, department: str) -> tuple[Path, 
     return resolved, digest
 
 
+#: the first bytes of the image formats the system accepts
+IMAGE_MAGIC = {
+    b"\x89PNG\r\n\x1a\n": "image/png",
+    b"\xff\xd8\xff": "image/jpeg",
+    b"GIF87a": "image/gif",
+    b"GIF89a": "image/gif",
+    b"RIFF": "image/webp",  # RIFF....WEBP
+}
+
+
+def validate_image_upload(filename: str, content_type: str | None, payload: bytes) -> str:
+    """Validate an image attachment and return its detected mime type.
+
+    The uploaded name and the declared content type are both untrusted: what
+    decides is the magic number at the head of the file.
+    """
+    settings = get_settings()
+    limit = settings.max_image_mb * 1024 * 1024
+    if not payload:
+        raise UploadRejected("Empty file")
+    if len(payload) > limit:
+        raise UploadRejected("Image too large", {"sizeBytes": len(payload), "limitBytes": limit})
+
+    detected = next(
+        (mime for magic, mime in IMAGE_MAGIC.items() if payload.startswith(magic)), None
+    )
+    if detected is None:
+        raise UploadRejected("File is not a recognised image", {"filename": filename})
+    if detected == "image/webp" and b"WEBP" not in payload[:16]:
+        raise UploadRejected("File is not a recognised image", {"filename": filename})
+    if content_type and content_type not in settings.allowed_image_mimetypes:
+        raise UploadRejected("Unexpected content type", {"contentType": content_type})
+    return detected
+
+
+def store_asset(payload: bytes, mime_type: str) -> tuple[Path, str]:
+    """Write an image under ``data/assets/`` addressed by its content hash."""
+    settings = get_settings()
+    digest = sha256_bytes(payload)
+    suffix = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/gif": ".gif",
+        "image/webp": ".webp",
+    }.get(mime_type, ".bin")
+    folder = settings.assets_dir / digest[:2]
+    folder.mkdir(parents=True, exist_ok=True)
+    path = (folder / f"{digest}{suffix}").resolve()
+    if not str(path).startswith(str(settings.assets_dir.resolve())):  # pragma: no cover
+        raise UploadRejected("Refusing to write outside the assets directory")
+    if not path.exists():
+        path.write_bytes(payload)
+        logger.info("stored asset %s (%d bytes)", path.name, len(payload))
+    return path, digest
+
+
 def relative_to_data(path: Path) -> str:
     settings = get_settings()
     try:

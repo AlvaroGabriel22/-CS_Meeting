@@ -121,5 +121,84 @@
       "missing_b": "B 값 없음",
       "undefined_percent": "백분율 없음: 기준값이 0"
     }
+  },
+  "executive": {
+    "version": "버전",
+    "period": "기간",
+    "metric": "지표",
+    "table": "표",
+    "kpis": "핵심 지표",
+    "insights": "경영 분석",
+    "noInsights": "이 기간에는 비교할 항목이 없습니다.",
+    "noReference": "기준 기간 없음",
+    "target": "목표",
+    "targetStatus": {
+      "above": "목표 초과",
+      "below": "목표 미만",
+      "at": "목표 일치"
+    },
+    "basis": {
+      "same_kind": "{{period}} 대비",
+      "preceding": "{{period}} 대비 (이전 열)",
+      "none": "기준 없음"
+    },
+    "compareVersions": "버전 비교",
+    "warnings": {
+      "no_target_in_snapshot": "이 파일에는 목표값이 없습니다.",
+      "reference_period_is_preceding_column": "같은 종류의 이전 기간이 없어 이전 열과 비교했습니다.",
+      "no_reference_period_in_snapshot": "파일의 첫 기간입니다.",
+      "no_period_in_snapshot": "이 스냅샷에서 기간을 찾지 못했습니다."
+    }
+  },
+  "insights": {
+    "metric_moved_up": "{{label}}이(가) {{period}}에 {{percent}} 상승했습니다 ({{from}} → {{to}}).",
+    "metric_moved_down": "{{label}}이(가) {{period}}에 {{percent}} 하락했습니다 ({{from}} → {{to}}).",
+    "metric_moved_absolute_up": "{{label}}이(가) {{period}}에 {{delta}}만큼 상승했습니다 ({{from}} → {{to}}).",
+    "metric_moved_absolute_down": "{{label}}이(가) {{period}}에 {{delta}}만큼 하락했습니다 ({{from}} → {{to}}).",
+    "largest_movement_up": "분석한 {{count}}개 카테고리 중 {{category}}의 {{metric}} 상승폭이 가장 컸습니다 ({{period}} {{percent}}).",
+    "largest_movement_down": "분석한 {{count}}개 카테고리 중 {{category}}의 {{metric}} 감소폭이 가장 컸습니다 ({{period}} {{percent}}).",
+    "target_above": "{{label}}은(는) {{period}}에 목표를 초과했습니다 ({{value}} vs {{target}}).",
+    "target_below": "{{label}}은(는) {{period}}에 목표에 미달했습니다 ({{value}} vs {{target}}).",
+    "trend_up": "{{label}}이(가) {{points}}개 연속 {{granularity}} 동안 상승했습니다 ({{from}} → {{to}}).",
+    "trend_down": "{{label}}이(가) {{points}}개 연속 {{granularity}} 동안 하락했습니다 ({{from}} → {{to}})."
+  },
+  "issues": {
+    "title": "이슈 리포트",
+    "empty": "이 기간에 등록된 이슈가 없습니다.",
+    "raiseFromInsight": "분석에서 이슈 등록",
+    "raise": "이슈 등록",
+    "status": "상태",
+    "severity": "심각도",
+    "edit": "편집",
+    "attach": "이미지 첨부",
+    "trend": "추세",
+    "descriptionPlaceholder": "어떤 조치를 하고 있습니까?",
+    "statuses": {
+      "open": "열림",
+      "in_progress": "진행 중",
+      "resolved": "해결됨",
+      "closed": "종료"
+    },
+    "severities": {
+      "info": "정보",
+      "low": "낮음",
+      "medium": "보통",
+      "high": "높음"
+    }
+  },
+  "trends": {
+    "rising": "상승",
+    "falling": "하락",
+    "stable": "안정",
+    "volatile": "변동",
+    "insufficient_data": "이력 부족",
+    "improving": "개선 중",
+    "worsening": "악화 중",
+    "neutral": "중립",
+    "unknown": "분류 없음"
+  },
+  "export": {
+    "pdf": "PDF 내보내기",
+    "ppt": "PPT 내보내기"
   }
 }

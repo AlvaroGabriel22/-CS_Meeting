@@ -121,6 +121,133 @@ recomputed on the client; `borders` are the sides the workbook draws;
 be shown as visibly different from real content (ADR-0020); `headlineMetric` is
 metadata and is never drawn as a label (ADR-0019).
 
+## Analytics (Sprint 3)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/versions/{id}/analytics/series` | chart-ready series + selector options |
+| `GET` | `/api/versions/{id}/analytics/comparison` | two periods of one snapshot |
+| `GET` | `/api/versions/{id}/analytics/versus/{otherId}` | one period across two snapshots |
+| `GET` | `/api/versions/{id}/analytics/executive` | KPIs + ranked insights for one period |
+
+Query parameters are model dimensions, never period names in the path:
+`table`, `category`, `subcategory`, `metric`, plus `order=file|chronological`
+for the series and `periodA`/`periodB` (or `period`) for the comparisons.
+
+```json
+{
+  "versionId": 2, "department": "IQC", "order": "file",
+  "periods": [{ "label": "Aug", "kind": "month", "quarter": "3Q", "sortKey": "2026-M08" }],
+  "series": [
+    {
+      "key": "TTL|Total||PPM|",
+      "label": "Total · PPM",
+      "selector": { "table": "TTL", "category": "Total", "metric": "PPM" },
+      "sheet": "IQC", "sourceRange": "B2:I17",
+      "points": [{ "period": { "label": "Aug" }, "value": 5495.0,
+                   "display": "5,495", "source": "I3" }]
+    }
+  ],
+  "options": { "tables": ["TTL", "SEC", "TNP"], "metrics": ["PPM", "Rej. Lot", "Insp. Lot"] }
+}
+```
+
+A comparison answers with one row per series:
+
+```json
+{
+  "kind": "periods", "periodA": { "label": "3Q" }, "periodB": { "label": "Aug" },
+  "rows": [{
+    "label": "Total · PPM",
+    "delta": { "valueA": 6329.0, "valueB": 5495.0, "delta": -834.0,
+               "deltaPercent": -13.18, "direction": "down",
+               "severity": "positive", "status": "ok" },
+    "sourceA": "H3", "sourceB": "I3"
+  }],
+  "insights": [{ "title": "Total · PPM — Aug vs 3Q", "sourceRange": "B2:I17",
+                 "versionId": 2, "versionNumber": 2 }],
+  "warnings": []
+}
+```
+
+`deltaPercent` is `null` when the baseline is missing or zero — `status` says
+which (`missing_a`, `missing_b`, `undefined_percent`). `severity` is `unknown`
+unless the department declares the metric's polarity (ADR-0022).
+
+### Executive view (`/analytics/executive`)
+
+One call for the top of a department page: `period` (default: the last one in
+the file), `table` and `metric` (default: the department's headline metric).
+
+```json
+{
+  "versionId": 2, "versionNumber": 2, "department": "IQC",
+  "period": { "label": "Aug", "quarter": "3Q", "year": 2026 },
+  "previousPeriod": { "label": "3Q" },
+  "comparisonBasis": "preceding",
+  "metric": "PPM",
+  "kpis": [{
+    "label": "Local · PPM", "display": "35,714", "value": 35714.0,
+    "previousDisplay": "9,709", "delta": 26005.0, "deltaPercent": 267.8,
+    "direction": "up", "severity": "negative", "polarity": "lower_is_better",
+    "target": null, "targetStatus": null, "targetBreached": false,
+    "source": "I15", "sourceRange": "B2:I17"
+  }],
+  "insights": [{
+    "kind": "metric_moved", "template": "insights.metric_moved_up",
+    "params": { "label": "Local · PPM", "percent": "267.8%", "period": "Aug",
+                "from": "9,709", "to": "35,714" },
+    "text": "Local · PPM rose 267.8% in Aug (9,709 → 35,714).",
+    "score": 317.8, "severity": "negative",
+    "table": "TTL", "category": "Local", "metric": "PPM",
+    "source": "I15", "sourceRange": "B2:I17", "versionId": 2
+  }],
+  "warnings": ["reference_period_is_preceding_column", "no_target_in_snapshot"]
+}
+```
+
+`comparisonBasis` says what the KPI compares against (ADR-0025); `target`
+appears only when the workbook carries one; `template` + `params` let the UI
+write the sentence in any language (ADR-0026); `score` is the documented
+ranking (ADR-0027).
+
+## Issue reports and exports (Sprint 5)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/versions/{id}/issues` | issues of a snapshot (`period`, `status`) |
+| `POST` | `/api/versions/{id}/issues` | raise an issue about one reading |
+| `PATCH` | `/api/versions/{id}/issues/{issueId}` | edit the editorial half only |
+| `POST` | `/api/versions/{id}/issues/{issueId}/media` | attach an image (multipart) |
+| `GET` | `/api/assets/{assetId}` | serve an image |
+| `POST` | `/api/versions/{id}/export/pdf` | structured PDF of the current view |
+| `POST` | `/api/versions/{id}/export/ppt` | editable PowerPoint of the current view |
+
+Creating an issue takes a **selector**, never numbers:
+
+```json
+POST /api/versions/2/issues
+{ "table": "TTL", "category": "Local", "metric": "PPM", "period": "Aug",
+  "title": "Local PPM spike", "description": "Containment in place.",
+  "origin": { "kind": "metric_moved", "template": "insights.metric_moved_up" } }
+```
+
+The response carries the numbers the service read from the snapshot —
+`value`, `previousValue`, `delta`, `deltaPercent`, `trend`, `sourceCell`,
+`sourceRange` — plus the editorial fields. `PATCH` accepts only `title`,
+`description`, `severity`, `status` and `language`; anything else is refused
+with `validation_error` naming the field (ADR-0029).
+
+Exports take the page's state and stream the file back:
+
+```json
+POST /api/versions/2/export/pdf
+{ "period": "Oct", "table": "TTL", "metric": "PPM", "compareWith": 1 }
+```
+
+Both formats are built from one context (ADR-0030): a different period gives a
+different file, and the deck's chart and tables are native, editable objects.
+
 ## Planned
 
 | Sprint | Endpoints |

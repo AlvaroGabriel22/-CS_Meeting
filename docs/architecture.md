@@ -24,6 +24,8 @@ neither.
 | Periods | `app/excel/period_engine.py` | periods → resolved periods | touch cells |
 | Normalizer | `app/excel/normalizer.py` | interpretation → `NormalizedTable` | touch openpyxl |
 | Verification | `app/excel/verification.py` | table → confirmed / warned | change a value |
+| Render model | `app/services/render_model.py` | normalized table → display grid | interpret |
+| Analytics | `app/services/analytics.py` | normalized tables → series, deltas, insights | touch the workbook |
 | Repository | `app/services/import_service.py` | model ↔ SQLite | parse |
 | Presentation | `app/services/interpretation.py` (+ Sprint 1 services) | model → presentation model | mutate facts |
 | Frontend | `frontend/src` | presentation model → UI | know Excel |
@@ -46,7 +48,8 @@ CS_Meeting/
 │   │   │                  → normalizer → verification → pipeline
 │   │   │                  (+ periods, period_engine, hierarchy, values, model)
 │   │   ├── schemas/       Pydantic wire contract (camelCase)
-│   │   ├── services/      storage, import, interpretation, translation/
+│   │   ├── services/      storage, import, interpretation, render_model,
+│   │   │                  analytics, presentation, translation/
 │   │   ├── tools/         inspect_raw.py (CLI proof of interpretation)
 │   │   └── api/routes/    HTTP layer
 │   ├── alembic/           migrations
@@ -99,6 +102,21 @@ Presentation → versions[] → { imports[], tables[], charts[],
 A version *references* imports (no copy) and *owns* its editorial content.
 Charts select rows, periods and series **by label and sortKey**, never by index,
 so a table that gains a column keeps its charts working.
+
+## Analytics
+
+`app/services/analytics.py` reads the same normalized model the tables are drawn
+from. A series is identified by meaning — table, category, subcategory, metric —
+so it survives a file whose columns moved (ADR-0021). Three capabilities:
+
+* **series** for charts, with the period axis ordered by the engine;
+* **period comparison** inside one snapshot;
+* **version comparison** of the same period across two snapshots.
+
+Delta rules are in ADR-0022; every value keeps the cell it came from, so a chart
+point can be traced to `sheet!cell` of a given version.
+
+`ExecutiveInsight` (ADR-0024) is the shape a later sprint will turn into slides.
 
 ## Versioning
 

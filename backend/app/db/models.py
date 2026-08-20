@@ -50,6 +50,22 @@ class PresentationStatus(str, enum.Enum):
     TRASHED = "trashed"
 
 
+class IssueStatus(str, enum.Enum):
+    """Where an issue stands.  Never inferred from the numbers improving."""
+
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+class IssueSeverity(str, enum.Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
 class VersionStatus(str, enum.Enum):
     DRAFT = "draft"  # autosave target, mutable
     PUBLISHED = "published"  # immutable snapshot created by "Save Version"
@@ -448,3 +464,87 @@ class AssetUsage(Base):
     version_id: Mapped[int | None] = mapped_column(
         ForeignKey("presentation_versions.id", ondelete="CASCADE")
     )
+
+
+# --------------------------------------------------------------------------- #
+# Issue reports (Sprint 5)
+# --------------------------------------------------------------------------- #
+class Issue(TimestampMixin, Base):
+    """A situation that deserves executive attention.
+
+    The *editorial* half — title, description, severity, status — is what the
+    user writes.  The *analytical* half — period, values, delta, trend, origin
+    cell — is copied from the model at creation time and never edited by hand,
+    so an issue always states where its numbers came from (ADR-0029).
+    """
+
+    __tablename__ = "issues"
+    __table_args__ = (Index("ix_issues_scope", "version_id", "period_label"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("presentation_versions.id", ondelete="CASCADE"), index=True
+    )
+    department: Mapped[Department] = mapped_column(
+        SAEnum(Department, native_enum=False, length=16), nullable=False, index=True
+    )
+
+    # --- what it is about (the analytical selector) ------------------------ #
+    period_label: Mapped[str | None] = mapped_column(String(40))
+    period: Mapped[dict | None] = mapped_column(JSON)
+    reference_period: Mapped[dict | None] = mapped_column(JSON)
+    table_name: Mapped[str | None] = mapped_column(String(160))
+    category: Mapped[str | None] = mapped_column(String(160))
+    subcategory: Mapped[str | None] = mapped_column(String(160))
+    metric: Mapped[str | None] = mapped_column(String(160))
+    series_type: Mapped[str | None] = mapped_column(String(60))
+
+    # --- editorial --------------------------------------------------------- #
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    #: rich document (TipTap), so images and translation work as designed
+    description_doc: Mapped[dict] = mapped_column(JSON, default=dict)
+    description_text: Mapped[str | None] = mapped_column(Text)
+    #: content hash of the description — the key of the translation cache
+    translation_key: Mapped[str | None] = mapped_column(String(64), index=True)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    severity: Mapped[IssueSeverity] = mapped_column(
+        SAEnum(IssueSeverity, native_enum=False, length=16), default=IssueSeverity.MEDIUM
+    )
+    status: Mapped[IssueStatus] = mapped_column(
+        SAEnum(IssueStatus, native_enum=False, length=16), default=IssueStatus.OPEN, index=True
+    )
+
+    # --- the numbers, copied from the model -------------------------------- #
+    value: Mapped[float | None] = mapped_column(Float)
+    previous_value: Mapped[float | None] = mapped_column(Float)
+    delta: Mapped[float | None] = mapped_column(Float)
+    delta_percent: Mapped[float | None] = mapped_column(Float)
+    target: Mapped[float | None] = mapped_column(Float)
+    direction: Mapped[str | None] = mapped_column(String(10))
+    analytical_severity: Mapped[str | None] = mapped_column(String(10))
+    trend: Mapped[dict | None] = mapped_column(JSON)
+
+    # --- provenance --------------------------------------------------------- #
+    source_cell: Mapped[str | None] = mapped_column(String(12))
+    source_range: Mapped[str | None] = mapped_column(String(40))
+    #: the insight this issue was raised from, when it was
+    origin: Mapped[dict | None] = mapped_column(JSON)
+
+    media: Mapped[list["IssueMedia"]] = relationship(
+        back_populates="issue", cascade="all, delete-orphan", order_by="IssueMedia.order_index"
+    )
+
+
+class IssueMedia(Base):
+    """An image attached to an issue: evidence, never analytical data."""
+
+    __tablename__ = "issue_media"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("issues.id", ondelete="CASCADE"), index=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
+    caption: Mapped[str | None] = mapped_column(String(300))
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+
+    issue: Mapped[Issue] = relationship(back_populates="media")
+    asset: Mapped[Asset] = relationship()

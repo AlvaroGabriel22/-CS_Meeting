@@ -121,5 +121,84 @@
       "missing_b": "sem valor em B",
       "undefined_percent": "sem percentual: base é zero"
     }
+  },
+  "executive": {
+    "version": "Versão",
+    "period": "Período",
+    "metric": "Métrica",
+    "table": "Tabela",
+    "kpis": "Indicadores",
+    "insights": "Análise executiva",
+    "noInsights": "Ainda não há o que comparar neste período.",
+    "noReference": "Sem período de referência",
+    "target": "Target",
+    "targetStatus": {
+      "above": "acima do target",
+      "below": "abaixo do target",
+      "at": "no target"
+    },
+    "basis": {
+      "same_kind": "vs {{period}}",
+      "preceding": "vs {{period}} (coluna anterior)",
+      "none": "sem referência"
+    },
+    "compareVersions": "Comparação de versões",
+    "warnings": {
+      "no_target_in_snapshot": "Esta planilha não traz target.",
+      "reference_period_is_preceding_column": "Não há período anterior do mesmo tipo no arquivo: comparado com a coluna anterior.",
+      "no_reference_period_in_snapshot": "Este é o primeiro período do arquivo.",
+      "no_period_in_snapshot": "Nenhum período foi detectado neste snapshot."
+    }
+  },
+  "insights": {
+    "metric_moved_up": "{{label}} subiu {{percent}} em {{period}} ({{from}} → {{to}}).",
+    "metric_moved_down": "{{label}} caiu {{percent}} em {{period}} ({{from}} → {{to}}).",
+    "metric_moved_absolute_up": "{{label}} subiu {{delta}} em {{period}} ({{from}} → {{to}}).",
+    "metric_moved_absolute_down": "{{label}} caiu {{delta}} em {{period}} ({{from}} → {{to}}).",
+    "largest_movement_up": "{{category}} teve o maior aumento de {{metric}} entre as {{count}} categorias analisadas ({{percent}} em {{period}}).",
+    "largest_movement_down": "{{category}} teve a maior redução de {{metric}} entre as {{count}} categorias analisadas ({{percent}} em {{period}}).",
+    "target_above": "{{label}} está acima do target em {{period}} ({{value}} vs {{target}}).",
+    "target_below": "{{label}} está abaixo do target em {{period}} ({{value}} vs {{target}}).",
+    "trend_up": "{{label}} subiu em {{points}} {{granularity}}s consecutivos ({{from}} → {{to}}).",
+    "trend_down": "{{label}} caiu em {{points}} {{granularity}}s consecutivos ({{from}} → {{to}})."
+  },
+  "issues": {
+    "title": "Issue reports",
+    "empty": "Nenhum issue registrado neste período.",
+    "raiseFromInsight": "Registrar issue a partir de uma análise",
+    "raise": "Registrar",
+    "status": "Status",
+    "severity": "Severidade",
+    "edit": "Editar",
+    "attach": "Anexar imagem",
+    "trend": "Tendência",
+    "descriptionPlaceholder": "O que está sendo feito a respeito?",
+    "statuses": {
+      "open": "Aberto",
+      "in_progress": "Em andamento",
+      "resolved": "Resolvido",
+      "closed": "Fechado"
+    },
+    "severities": {
+      "info": "Informativo",
+      "low": "Baixa",
+      "medium": "Média",
+      "high": "Alta"
+    }
+  },
+  "trends": {
+    "rising": "em alta",
+    "falling": "em queda",
+    "stable": "estável",
+    "volatile": "oscilante",
+    "insufficient_data": "histórico insuficiente",
+    "improving": "melhorando",
+    "worsening": "piorando",
+    "neutral": "neutra",
+    "unknown": "sem classificação"
+  },
+  "export": {
+    "pdf": "Exportar PDF",
+    "ppt": "Exportar PPT"
   }
 }
