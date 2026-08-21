@@ -54,74 +54,25 @@ def test_series_endpoint_can_order_chronologically(client, iqc_evolution) -> Non
     assert [period["quarter"] for period in months] == ["3Q", "3Q", "4Q"]
 
 
-def test_period_comparison_endpoint(client, iqc_real: Path) -> None:
-    created = _upload(client, iqc_real)
-    body = client.get(
-        f"/api/versions/{created['versionId']}/analytics/comparison",
-        params={"periodA": "3Q", "periodB": "Aug", "table": "TTL", "metric": "Rej. Lot"},
-    ).json()
-
-    assert body["kind"] == "periods"
-    assert body["periodA"]["label"] == "3Q" and body["periodB"]["label"] == "Aug"
-    row = body["rows"][0]
-    assert row["delta"]["delta"] is not None
-    assert row["delta"]["status"] == "ok"
-    assert body["insights"] and body["insights"][0]["versionId"] == created["versionId"]
-    assert body["insights"][0]["sourceRange"] == "B2:I17"
-
-
-def test_period_comparison_reports_an_absent_period(client, iqc_real: Path) -> None:
-    created = _upload(client, iqc_real)
-    body = client.get(
-        f"/api/versions/{created['versionId']}/analytics/comparison",
-        params={"periodA": "Aug", "periodB": "Dec", "table": "TTL"},
-    ).json()
-    assert "period_not_in_snapshot:Dec" in body["warnings"]
-    assert all(row["delta"]["status"] == "missing_b" for row in body["rows"])
-    assert body["insights"] == []
-
-
-def test_version_comparison_endpoint(client, iqc_evolution) -> None:
-    first = _upload(client, iqc_evolution["a"])
-    second = _upload(client, iqc_evolution["b"])
-
-    body = client.get(
-        f"/api/versions/{first['versionId']}/analytics/versus/{second['versionId']}",
-        params={"period": "Aug", "table": "TTL", "metric": "Insp. Lot"},
-    ).json()
-
-    assert body["kind"] == "versions"
-    assert body["versionId"] == first["versionId"]
-    assert body["comparedVersionId"] == second["versionId"]
-    assert body["periodA"]["label"] == "Aug"
-    row = body["rows"][0]
-    assert row["delta"]["valueA"] is not None and row["delta"]["valueB"] is not None
-    assert row["sourceA"] and row["sourceB"]
-
-
-def test_comparing_a_version_with_itself_is_refused(client, iqc_real: Path) -> None:
-    created = _upload(client, iqc_real)
-    response = client.get(
-        f"/api/versions/{created['versionId']}/analytics/versus/{created['versionId']}",
-        params={"period": "Aug"},
-    )
-    assert response.status_code == 422
-    assert response.json()["code"] == "validation_error"
-
-
-def test_analytics_never_changes_a_snapshot(client, iqc_evolution) -> None:
+def test_reading_a_snapshot_never_changes_it(client, iqc_evolution) -> None:
     first = _upload(client, iqc_evolution["a"])
     before = client.get(f"/api/versions/{first['versionId']}/view").json()
 
-    second = _upload(client, iqc_evolution["d"])
-    client.get(
-        f"/api/versions/{first['versionId']}/analytics/versus/{second['versionId']}",
-        params={"period": "Aug"},
-    )
-    client.get(
-        f"/api/versions/{first['versionId']}/analytics/comparison",
-        params={"periodA": "3Q", "periodB": "Aug"},
-    )
+    client.get(f"/api/versions/{first['versionId']}/analytics/series")
+    client.get(f"/api/versions/{first['versionId']}/charts")
 
     after = client.get(f"/api/versions/{first['versionId']}/view").json()
     assert before == after  # reading never writes
+
+
+def test_the_api_offers_no_comparison_or_executive_endpoint(client, iqc_real: Path) -> None:
+    """The page has three containers; nothing else is served (ADR-0036)."""
+    created = _upload(client, iqc_real)
+    version = created["versionId"]
+    for path in (
+        f"/api/versions/{version}/analytics/comparison",
+        f"/api/versions/{version}/analytics/executive",
+        f"/api/versions/{version}/analytics/versus/{version}",
+        f"/api/versions/{version}/issues",
+    ):
+        assert client.get(path).status_code == 404, path

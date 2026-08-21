@@ -1,8 +1,12 @@
 """What an export contains — assembled once, rendered twice.
 
-The PDF and the PPT must show the same thing the screen shows, so both read
-this single context, built from the page's own state: the version, the period,
-the table and the metric the user had selected (ADR-0030).
+The PDF and the deck must show what the page shows, so both read this single
+context: the three charts, the three tables and the report the author wrote
+(ADR-0030, ADR-0036).
+
+Translation reaches the file the same way it reaches the screen: the report is
+looked up in the overlay, and nothing else is (ADR-0035).  A translated export
+therefore holds exactly the numbers of an untranslated one.
 """
 
 from __future__ import annotations
@@ -11,15 +15,16 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import PresentationVersion
+from app.db.models import Department, DepartmentSettings, PresentationVersion
 from app.schemas.table import TableOut
-from app.services import analytics, assets, executive, issues as issue_service
-from app.services import presentation_service, serializers
+from app.services import assets, charts, presentation_service, reports, serializers
 from app.services.render_model import build_table_view
+from app.services.translation import TranslationService
 
 logger = logging.getLogger(__name__)
 
@@ -31,19 +36,14 @@ class ExportContext:
     version_number: int | None
     version_label: str | None
     raw_file: str | None
-    period: dict[str, Any] | None
-    reference_period: dict[str, Any] | None
-    comparison_basis: str
-    metric: str | None
-    table: str | None
-    kpis: list[dict[str, Any]] = field(default_factory=list)
-    insights: list[dict[str, Any]] = field(default_factory=list)
-    issues: list[dict[str, Any]] = field(default_factory=list)
-    series: list[dict[str, Any]] = field(default_factory=list)
-    periods: list[dict[str, Any]] = field(default_factory=list)
+    metric: str | None = None
+    charts: list[dict[str, Any]] = field(default_factory=list)
     tables: list[dict[str, Any]] = field(default_factory=list)
-    comparison: dict[str, Any] | None = None
-    warnings: list[str] = field(default_factory=list)
+    #: the report the author built: title, columns, rows of blocks (ADR-0038)
+    report: dict[str, Any] = field(default_factory=dict)
+    #: absolute paths of the images it uses, by asset id
+    report_images: dict[int, str] = field(default_factory=dict)
+    language: str = "en"
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
@@ -52,46 +52,25 @@ class ExportContext:
 
     @property
     def subtitle(self) -> str:
-        period = (self.period or {}).get("label") or "—"
         version = f"v{self.version_number}" if self.version_number else "—"
-        return f"{period} · {version}"
+        return f"{self.version_label or '—'} · {version}"
 
-
-def _issue_payload(issue: Any) -> dict[str, Any]:
-    return {
-        "id": issue.id,
-        "title": issue.title,
-        "description": issue.description_text or "",
-        "severity": issue.severity.value,
-        "status": issue.status.value,
-        "period": issue.period_label,
-        "table": issue.table_name,
-        "category": issue.category,
-        "subcategory": issue.subcategory,
-        "metric": issue.metric,
-        "value": issue.value,
-        "previousValue": issue.previous_value,
-        "delta": issue.delta,
-        "deltaPercent": issue.delta_percent,
-        "source": issue.source_cell,
-        "sourceRange": issue.source_range,
-        "trend": issue.trend,
-        "images": [],  # filled in below, with paths on disk
-    }
+    @property
+    def has_report(self) -> bool:
+        return bool(self.report.get("columns") or self.report.get("rows") or self.report.get("title"))
 
 
 def build_context(
     session: Session,
     *,
     version_id: int,
-    period: str | None = None,
-    table: str | None = None,
-    metric: str | None = None,
-    compare_with: int | None = None,
     include_tables: bool = True,
     include_charts: bool = True,
+    include_report: bool = True,
+    language: str | None = None,
+    translate: bool = False,
 ) -> ExportContext:
-    """Assemble exactly what the executive page is showing."""
+    """Assemble exactly what the department page is showing."""
     version: PresentationVersion = presentation_service.get_version(session, version_id)
     tables: list[TableOut] = [
         serializers.table_out(definition)
@@ -100,90 +79,70 @@ def build_context(
     ]
     department = version.imports[0].department.value if version.imports else "IQC"
 
-    summary = executive.build_executive_view(
-        tables,
-        period_label=period,
-        table=table,
-        metric=metric,
-        department=department,
-        version_id=version.id,
-        version_number=version.number,
-    )
-    chosen_period = (summary.get("period") or {}).get("label")
-    chosen_table = table or (summary["options"]["tables"][0] if summary["options"]["tables"] else None)
-
     context = ExportContext(
         department=department,
         version_id=version.id,
         version_number=version.number,
         version_label=version.label,
         raw_file=(version.summary or {}).get("rawFile"),
-        period=summary.get("period"),
-        reference_period=summary.get("previousPeriod"),
-        comparison_basis=summary.get("comparisonBasis", "none"),
-        metric=summary.get("metric"),
-        table=chosen_table,
-        kpis=summary.get("kpis", []),
-        insights=summary.get("insights", []),
-        warnings=list(summary.get("warnings", [])),
-        periods=summary.get("periods", []),
     )
 
-    # issues raised on this snapshot for this period, with their images
-    for issue in issue_service.list_issues(
-        session, version_id=version.id, period=chosen_period
-    ):
-        payload = _issue_payload(issue)
-        for media in issue.media:
-            path: Path = assets.absolute_path(media.asset)
-            if path.exists():
-                payload["images"].append(
-                    {"path": str(path), "caption": media.caption, "mime": media.asset.mime_type}
-                )
-        context.issues.append(payload)
+    settings = session.scalars(
+        select(DepartmentSettings).where(DepartmentSettings.department == Department(department))
+    ).first()
+    chart_titles = (settings.chart_titles if settings else {}) or {}
+    table_titles = (settings.table_titles if settings else {}) or {}
 
     if include_charts:
-        chart = analytics.build_series_response(
+        built = charts.build_charts(
             tables,
-            filters={"table": chosen_table, "metric": context.metric},
-            order="file",
+            department=department,
+            configured=(settings.chart_series if settings else {}) or {},
         )
-        context.series = chart["series"]
-        context.periods = chart["periods"] or context.periods
+        context.metric = built["metric"]
+        context.charts = [
+            {**chart, "title": chart_titles.get(chart["table"]) or chart["table"]}
+            for chart in built["charts"]
+        ]
 
     if include_tables:
-        context.tables = [build_table_view(item) for item in tables]
+        context.tables = []
+        for item in tables:
+            view = build_table_view(item)
+            name = view.get("title") or view.get("sheet")
+            view["title"] = table_titles.get(name) or name
+            context.tables.append(view)
 
-    if compare_with:
-        other = presentation_service.get_version(session, compare_with)
-        other_tables = [
-            serializers.table_out(definition)
-            for data in other.imports
-            for definition in sorted(data.tables, key=lambda item: item.order_index)
-        ]
-        comparison = analytics.compare_versions(
-            tables,
-            other_tables,
-            period=chosen_period or "",
-            filters={"table": chosen_table, "metric": context.metric},
-            department=department,
-        )
-        comparison.update(
-            {
-                "versionNumber": version.number,
-                "comparedVersionNumber": other.number,
-            }
-        )
-        context.comparison = comparison
+    report = reports.get_report(session, version.id) if include_report else None
+    if report is not None:
+        content = report.content or reports.empty_content()
+
+        if translate and language and language != report.language:
+            # only the report is translated — the rest of the page is interface
+            # text and workbook labels, which never leave the process (ADR-0036)
+            outcome = TranslationService().translate_texts(
+                session,
+                reports.translatable_strings(content),
+                source_language=report.language,
+                target_language=language,
+                department=department,
+            )
+            content = reports.apply_translation(content, outcome.mapping)
+            context.language = language
+
+        context.report = content
+        for media in report.media:
+            path: Path = assets.absolute_path(media.asset)
+            if path.exists():
+                context.report_images[media.asset_id] = str(path)
 
     logger.info(
-        "export context: %s %s v%s — %d KPI(s), %d insight(s), %d issue(s), %d table(s)",
+        "export context: %s v%s — %d chart(s), %d table(s), report %s, language %s",
         department,
-        chosen_period,
         version.number,
-        len(context.kpis),
-        len(context.insights),
-        len(context.issues),
+        len(context.charts),
         len(context.tables),
+        "yes" if context.has_report else "no",
+        context.language,
     )
     return context

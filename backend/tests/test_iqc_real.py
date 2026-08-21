@@ -22,7 +22,8 @@ def _tables(iqc_real: Path):
 def test_01_detects_three_tables(iqc_real: Path) -> None:
     workbook = parse_file(iqc_real, "IQC")
     assert len(workbook.tables) == 3
-    # the README sheet is prose, not raw data
+    # the README sheet is prose, not raw data: it is skipped, and the report of
+    # a presentation is written by hand in the application instead (ADR-0036)
     readme = next(sheet for sheet in workbook.sheets if sheet.name == "README")
     assert readme.tables == []
     assert any(w.startswith("skipped_non_tabular_region") for w in readme.warnings)

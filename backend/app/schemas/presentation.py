@@ -45,41 +45,6 @@ class ChartDefinitionOut(CamelModel):
     config: dict[str, Any] = {}
 
 
-class IssueReportCellOut(CamelModel):
-    id: int
-    row_id: int
-    column_id: int
-    doc: RichDocument = {}
-    align: str = "left"
-    valign: str = "top"
-
-
-class IssueReportColumnOut(CamelModel):
-    id: int
-    index: int
-    title: str = ""
-    width: float | None = None
-    align: str = "left"
-
-
-class IssueReportRowOut(CamelModel):
-    id: int
-    index: int
-    height: float | None = None
-
-
-class IssueReportOut(CamelModel):
-    id: int
-    department: DepartmentLiteral
-    order_index: int = 0
-    title: str = ""
-    language: str = "en"
-    columns: list[IssueReportColumnOut] = []
-    rows: list[IssueReportRowOut] = []
-    cells: list[IssueReportCellOut] = []
-    config: dict[str, Any] = {}
-
-
 class AssetOut(CamelModel):
     id: int
     url: str  # served path, never a filesystem path
@@ -138,7 +103,6 @@ class PresentationModelOut(CamelModel):
     imports: list[ImportOut] = []
     tables: list[TableSummaryOut] = []
     charts: list[ChartDefinitionOut] = []
-    issue_reports: list[IssueReportOut] = []
     assets: list[AssetOut] = []
     language: str = "en"
 

@@ -132,7 +132,7 @@ cd backend && .venv/bin/alembic upgrade head
 ```
 
 
-## 3. Analytical projections (Sprint 3)
+## 3. Chart projections
 
 Nothing new is stored: analytics are computed from the same tables.
 
@@ -141,51 +141,72 @@ Series          selector {table, category, subcategory, metric, seriesType}
                 points[] {period, value, display, valueType, source}
                 provenance {sheet, sourceRange, tableId}
 
-Delta           {valueA, valueB, delta, deltaPercent|null,
-                 direction, severity, status}
-
-ExecutiveInsight {title, department, table, category, subcategory, metric,
-                  period, referencePeriod, value, previousValue,
-                  delta, deltaPercent, direction, severity,
-                  source, sourceRange, versionId, versionNumber}
+Chart           {table, metric, sheet, sourceRange, periods,
+                 bars[{key, label, points}], line{key, label, points}}
+ChartPoint      {period, value|null, display, source}
 ```
 
 * the **selector is the identity** of a series across snapshots (ADR-0021);
-* `deltaPercent` is `null` whenever the baseline is missing or zero, with a
-  `status` saying which (ADR-0022);
-* `severity` only appears when the department declares the metric's polarity
-  (`DepartmentSchema.polarity`);
+* no projection carries a delta, a percentage, a severity or a score: the
+  system draws the numbers the workbook holds and calculates nothing
+  (ADR-0033, ADR-0036);
 * every projection keeps `source` (the cell) and `sourceRange` (the block), so
   a number on a chart can always be traced back to the workbook and the version.
 
 
-## 4. Issue reports (Sprint 5)
+## 4. The report and the settings
 
 | Table | Holds |
 | --- | --- |
-| `issues` | one issue: its selector, its editorial text, the numbers copied from the snapshot, and its provenance |
-| `issue_media` | images attached as evidence, pointing at `assets` |
+| `version_reports` | one report per snapshot: the rich document, its plain text and its content hash |
+| `report_media` | images the author attached, pointing at `assets` |
 
 ```
-issues
-├── version_id, department              which snapshot it belongs to
-├── period, reference_period            resolved by the period engine
-├── table_name, category, subcategory, metric, series_type
-├── title, description_doc (TipTap), description_text, translation_key
-├── severity (info|low|medium|high), status (open|in_progress|resolved|closed)
-├── value, previous_value, delta, delta_percent, target, direction, trend
-└── source_cell, source_range, origin   provenance of every number
-issue_media ──▶ assets (bytes on disk, metadata in SQLite)
+version_reports
+├── version_id (unique)                 the snapshot it belongs to
+├── language                            what it was written in
+├── content {title, columns[], rows[]}  the table the author built
+│     row.cells[columnId] = [block, …]  ordered: text | image | shape
+├── text                                its words, flattened, for translation
+└── translation_key                     content hash → the translation cache
+report_media ──▶ assets (bytes on disk, metadata in SQLite)
+
+department_settings
+├── department (unique)
+├── chart_titles {"TTL": "Total incoming"}
+└── table_titles {"TTL": "Summary"}
 ```
 
-Rules (ADR-0029):
+Rules (ADR-0036):
 
-* the **editorial** half is editable; an edit that names an analytical field is
-  refused by name;
-* the **analytical** half is recomputed from the snapshot at creation — an
-  issue can always be proved against `sheet!cell` of its version;
-* `translation_key` is the content hash of the description, so the translation
-  cache of ADR-0007 applies without further work;
-* status only moves when a person moves it.
+* the system never writes, summarises or suggests a word of it;
+* a cell is an *ordered list of blocks*, so the author controls what sits above
+  what (ADR-0038);
+* the settings are per department and outlive an import: renaming `TTL` once
+  keeps that name for every future upload of the same workbook;
+* saving replaces it; the snapshot it belongs to is never touched;
+* `translation_key` is the content hash, so an unchanged report costs no
+  provider call;
+* the Sprint 5 `issues` tables and the Sprint 0 `issue_report*` grid were
+  dropped by migration `902bbcb42eb9` — this replaces both.
 
-Exports are written to `data/exports/` and never overwrite a snapshot.
+
+## 5. Translation
+
+Nothing new is stored about the *content*: a translation is an overlay computed
+on request and cached by string.
+
+```
+translations
+├── source_hash        sha256 of the linguistic content (one string or one doc)
+├── source_language, target_language, provider, model
+├── content            {"text": "…"} for a string, a document tree for an issue
+└── source_preview, created_at, last_used_at
+```
+
+* the cache key is the *text*, not the cell: the same label costs one
+  round-trip for the whole product;
+* `text_hash(text) == content_hash(doc_with(text))` by construction, so strings
+  and rich documents share one rule;
+* an answer that changed a data token is never cached — the original is kept
+  (ADR-0035).

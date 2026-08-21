@@ -29,9 +29,8 @@ export function Topbar() {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-700 text-sm font-semibold text-white shadow-sm">
             CS
           </span>
-          <span className="hidden flex-col leading-tight sm:flex">
-            <span className="text-sm font-semibold text-brand-900">{t('app.name')}</span>
-            <span className="text-xs text-ink-500">{t('app.tagline')}</span>
+          <span className="hidden text-sm font-semibold text-brand-900 sm:block">
+            {t('app.name')}
           </span>
         </NavLink>
 
@@ -45,6 +44,9 @@ export function Topbar() {
                 {t(`department.${department}`)}
               </NavLink>
             ))}
+          <NavLink to="/reports" className={linkClass}>
+            {t('nav.reports')}
+          </NavLink>
           <NavLink to="/settings" className={linkClass}>
             {t('nav.settings')}
           </NavLink>

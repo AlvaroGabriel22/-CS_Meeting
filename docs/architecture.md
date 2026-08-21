@@ -25,12 +25,14 @@ neither.
 | Normalizer | `app/excel/normalizer.py` | interpretation → `NormalizedTable` | touch openpyxl |
 | Verification | `app/excel/verification.py` | table → confirmed / warned | change a value |
 | Render model | `app/services/render_model.py` | normalized table → display grid | interpret |
-| Analytics | `app/services/analytics.py` | normalized tables → series, deltas, insights | touch the workbook |
+| Analytics | `app/services/analytics.py` | normalized tables → series | calculate anything |
 | Repository | `app/services/import_service.py` | model ↔ SQLite | parse |
 | Presentation | `app/services/interpretation.py` (+ Sprint 1 services) | model → presentation model | mutate facts |
 | Frontend | `frontend/src` | presentation model → UI | know Excel |
-| Exporter | Sprint 5 | presentation model → PDF/PPT | re-read the workbook |
-| Translation | `app/services/translation/` | rich document → translated document | touch tables |
+| Charts | `app/services/charts.py` | series → bars per category + a line | recompute a value |
+| Report | `app/services/reports.py` | what the author typed → stored, served, translated | write a word of it |
+| Exporter | `app/services/export/` | presentation model → PDF/PPT | re-read the workbook |
+| Translation | `app/services/translation/` | strings → translated strings (overlay) | touch a number |
 
 Only `app/excel/parser.py` imports openpyxl. Only `app/services/*` touch the
 database. The API layer is thin: validate, call a service, serialize.
@@ -116,7 +118,37 @@ so it survives a file whose columns moved (ADR-0021). Three capabilities:
 Delta rules are in ADR-0022; every value keeps the cell it came from, so a chart
 point can be traced to `sheet!cell` of a given version.
 
-`ExecutiveInsight` (ADR-0024) is the shape a later sprint will turn into slides.
+## The department page
+
+Three containers, in this order (ADR-0036):
+
+```
+charts   one per table, side by side, in the workbook's order
+tables   the same three, side by side, in the same order
+report   written by hand, by the person presenting
+```
+
+The user calculates in Excel before uploading. The system identifies the
+structure and draws it; it recomputes nothing and adds nothing.
+
+## What the system does not do
+
+**The system reports; it does not analyse (ADR-0033), and it does not
+calculate (ADR-0036).** There is no layer that produces insights, causes,
+verdicts, rankings, trend classifications — or deltas, percentages and
+comparisons. The numbers arrive already worked out in the workbook; the system
+selects and draws them, keeping the cell each one came from. What any of it
+means is written by the person presenting, in the report.
+
+**AI is confined to translating the report.** Everything else on screen is
+interface text shipped in three languages, or a label that came from the
+workbook — neither needs a provider and neither is ever sent to one. The
+report is the only text the system cannot know in advance, so it is the only
+text a provider ever sees: through the seam of ADR-0007, with protected terms
+and data patterns masked on the way out and restored on the way back
+(ADR-0008), and with any answer whose data tokens changed discarded in favour
+of the original (ADR-0035). The stored report is never modified: the
+translation travels beside it.
 
 ## Versioning
 

@@ -6,6 +6,10 @@
 
 Each arrow is a module with one job; this file only wires them together and
 keeps a broken region from killing a whole import.
+
+A region that holds no numbers and no periods is not raw data — a note, a
+legend, a README sheet.  It is skipped: the report of a presentation is written
+by hand in the application, not read out of the workbook (ADR-0036).
 """
 
 from __future__ import annotations

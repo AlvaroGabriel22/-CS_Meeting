@@ -1,19 +1,15 @@
 {
   "app": {
-    "name": "CS Meeting",
-    "tagline": "품질 경영 보고 시스템"
+    "name": "CS Meeting"
   },
   "nav": {
     "home": "홈",
     "settings": "설정",
-    "language": "언어"
+    "language": "언어",
+    "reports": "리포트"
   },
   "home": {
-    "title": "품질 회의",
-    "subtitle": "품질 부서 주간 경영 보고",
-    "openPresentation": "발표자료 열기",
-    "noPresentation": "발표자료 없음",
-    "createFirst": "원본 데이터를 가져와 시작하세요"
+    "open": "열기"
   },
   "department": {
     "IQC": "IQC",
@@ -30,13 +26,6 @@
     "emptyIssues": "이슈 리포트가 없습니다.",
     "showingVersion": "버전 {{version}} · {{label}}"
   },
-  "card": {
-    "status": "상태",
-    "lastUpdate": "마지막 업데이트",
-    "issues": "이슈",
-    "period": "기간",
-    "never": "없음"
-  },
   "status": {
     "draft": "초안",
     "ready": "완료",
@@ -45,13 +34,7 @@
   },
   "settings": {
     "title": "설정",
-    "chooseDepartment": "부서 선택",
-    "rawDataUpload": "원본 데이터 업로드",
-    "issueReport": "이슈 리포트",
-    "presentationManagement": "발표자료 관리",
-    "versions": "버전",
-    "translations": "번역",
-    "export": "내보내기"
+    "chooseDepartment": "부서 선택"
   },
   "limit": {
     "title": "발표자료 한도 도달",
@@ -69,136 +52,78 @@
     "save": "저장",
     "saveVersion": "버전 저장",
     "sourceRange": "원본 범위",
-    "parserVersion": "파서 버전"
+    "parserVersion": "파서 버전",
+    "saved": "저장됨"
   },
-  "import": {
-    "title": "원본 데이터 가져오기",
-    "subtitle": "부서 파일을 업로드하고 파서가 인식한 내용을 확인한 뒤 버전을 저장하세요.",
-    "chooseFile": "파일 선택",
-    "noFile": "선택된 파일 없음",
-    "parsing": "분석 중…",
-    "preview": "파서 미리보기",
-    "parserVersion": "파서 {{version}}",
-    "reused": "이미 분석됨, 결과 재사용",
-    "clean": "경고 없음",
-    "warningCount": "경고 {{count}}건",
-    "tablesDetected": "감지된 표",
-    "periodsDetected": "감지된 기간",
-    "version": "버전",
-    "notSavedYet": "아직 저장되지 않음",
-    "table": "표",
-    "hierarchy": "계층",
-    "rows": "행",
-    "columns": "열",
-    "periodsShort": "기간",
-    "saved": "버전 {{version}}(으)로 저장됨",
-    "open": "원본 데이터 가져오기"
-  },
-  "analytics": {
-    "table": "표",
-    "metric": "지표",
-    "allMetrics": "모든 지표",
-    "periodA": "기간 A",
-    "periodB": "기간 B",
-    "row": "행",
-    "delta": "변화",
-    "periodComparison": "{{b}} 대 {{a}}",
-    "versionComparison": "다른 버전과 비교",
-    "compareWith": "버전",
-    "pickVersion": "선택…",
-    "orderHint": "파일 열 순서와 시간 순서 전환",
-    "chart": {
-      "line": "선형",
-      "bar": "막대"
+  "report": {
+    "reportTitle": "리포트 제목",
+    "titlePlaceholder": "예: 주간 품질 리뷰",
+    "startWithAColumn": "열을 만들어 리포트를 시작하세요.",
+    "addColumn": "열 추가",
+    "addRow": "행 추가",
+    "columnName": "열 이름",
+    "removeColumn": "열 삭제",
+    "removeRow": "행 삭제",
+    "removeBlock": "삭제",
+    "moveUp": "위로",
+    "moveDown": "아래로",
+    "moveLeft": "왼쪽으로",
+    "moveRight": "오른쪽으로",
+    "addText": "텍스트",
+    "addImage": "이미지",
+    "addShape": "도형",
+    "textPlaceholder": "여기에 작성하세요…",
+    "captionPlaceholder": "설명",
+    "imageWidth": "이미지 너비",
+    "size": {
+      "small": "작게",
+      "normal": "보통",
+      "large": "크게",
+      "heading": "제목"
     },
-    "order": {
-      "file": "파일 순서",
-      "chronological": "시간 순"
-    },
-    "status": {
-      "ok": "",
-      "missing_a": "A 값 없음",
-      "missing_b": "B 값 없음",
-      "undefined_percent": "백분율 없음: 기준값이 0"
+    "shape": {
+      "rectangle": "사각형",
+      "circle": "원",
+      "line": "선",
+      "arrow": "화살표",
+      "divider": "구분선"
     }
   },
   "executive": {
+    "version": "버전"
+  },
+  "config": {
+    "title": "설정",
+    "upload": "원본 데이터",
+    "titles": "제목",
+    "report": "리포트",
+    "chooseFile": "파일 선택",
+    "noFile": "선택된 파일 없음",
+    "tablesDetected": "감지된 표",
+    "periodsDetected": "감지된 기간",
+    "parserVersion": "파서",
+    "saveVersion": "버전 저장",
+    "saved": "저장됨",
+    "uploadFirst": "먼저 파일을 업로드하세요.",
+    "titlesHint": "각 그래프와 표 위에 표시될 이름을 바꿉니다. 아래의 숫자는 항상 파일에서 옵니다.",
+    "chartTitles": "그래프",
+    "tableTitles": "표",
+    "keepWorkbookName": "“{{name}}” 유지"
+  },
+  "reports": {
+    "title": "리포트",
+    "all": "전체",
+    "empty": "저장된 리포트가 없습니다.",
+    "department": "부서",
     "version": "버전",
-    "period": "기간",
-    "metric": "지표",
-    "table": "표",
-    "kpis": "핵심 지표",
-    "insights": "경영 분석",
-    "noInsights": "이 기간에는 비교할 항목이 없습니다.",
-    "noReference": "기준 기간 없음",
-    "target": "목표",
-    "targetStatus": {
-      "above": "목표 초과",
-      "below": "목표 미만",
-      "at": "목표 일치"
-    },
-    "basis": {
-      "same_kind": "{{period}} 대비",
-      "preceding": "{{period}} 대비 (이전 열)",
-      "none": "기준 없음"
-    },
-    "compareVersions": "버전 비교",
-    "warnings": {
-      "no_target_in_snapshot": "이 파일에는 목표값이 없습니다.",
-      "reference_period_is_preceding_column": "같은 종류의 이전 기간이 없어 이전 열과 비교했습니다.",
-      "no_reference_period_in_snapshot": "파일의 첫 기간입니다.",
-      "no_period_in_snapshot": "이 스냅샷에서 기간을 찾지 못했습니다."
-    }
-  },
-  "insights": {
-    "metric_moved_up": "{{label}}이(가) {{period}}에 {{percent}} 상승했습니다 ({{from}} → {{to}}).",
-    "metric_moved_down": "{{label}}이(가) {{period}}에 {{percent}} 하락했습니다 ({{from}} → {{to}}).",
-    "metric_moved_absolute_up": "{{label}}이(가) {{period}}에 {{delta}}만큼 상승했습니다 ({{from}} → {{to}}).",
-    "metric_moved_absolute_down": "{{label}}이(가) {{period}}에 {{delta}}만큼 하락했습니다 ({{from}} → {{to}}).",
-    "largest_movement_up": "분석한 {{count}}개 카테고리 중 {{category}}의 {{metric}} 상승폭이 가장 컸습니다 ({{period}} {{percent}}).",
-    "largest_movement_down": "분석한 {{count}}개 카테고리 중 {{category}}의 {{metric}} 감소폭이 가장 컸습니다 ({{period}} {{percent}}).",
-    "target_above": "{{label}}은(는) {{period}}에 목표를 초과했습니다 ({{value}} vs {{target}}).",
-    "target_below": "{{label}}은(는) {{period}}에 목표에 미달했습니다 ({{value}} vs {{target}}).",
-    "trend_up": "{{label}}이(가) {{points}}개 연속 {{granularity}} 동안 상승했습니다 ({{from}} → {{to}}).",
-    "trend_down": "{{label}}이(가) {{points}}개 연속 {{granularity}} 동안 하락했습니다 ({{from}} → {{to}})."
-  },
-  "issues": {
-    "title": "이슈 리포트",
-    "empty": "이 기간에 등록된 이슈가 없습니다.",
-    "raiseFromInsight": "분석에서 이슈 등록",
-    "raise": "이슈 등록",
-    "status": "상태",
-    "severity": "심각도",
-    "edit": "편집",
-    "attach": "이미지 첨부",
-    "trend": "추세",
-    "descriptionPlaceholder": "어떤 조치를 하고 있습니까?",
-    "statuses": {
-      "open": "열림",
-      "in_progress": "진행 중",
-      "resolved": "해결됨",
-      "closed": "종료"
-    },
-    "severities": {
-      "info": "정보",
-      "low": "낮음",
-      "medium": "보통",
-      "high": "높음"
-    }
-  },
-  "trends": {
-    "rising": "상승",
-    "falling": "하락",
-    "stable": "안정",
-    "volatile": "변동",
-    "insufficient_data": "이력 부족",
-    "improving": "개선 중",
-    "worsening": "악화 중",
-    "neutral": "중립",
-    "unknown": "분류 없음"
-  },
-  "export": {
-    "pdf": "PDF 내보내기",
-    "ppt": "PPT 내보내기"
+    "reportTitle": "제목",
+    "size": "크기",
+    "updated": "수정일",
+    "download": "다운로드",
+    "counts": "열 {{columns}} · 행 {{rows}} · 이미지 {{images}}",
+    "partReport": "리포트",
+    "partCharts": "그래프",
+    "partTables": "표",
+    "partAllPpt": "전체 PPT"
   }
 }

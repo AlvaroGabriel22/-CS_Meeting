@@ -6,7 +6,7 @@ import type { PresentationVersion } from '@/types/api'
 /**
  * Picks the snapshot the whole page reads.
  *
- * Every panel below — tables, charts, KPIs, insights — receives the id chosen
+ * Every panel below — tables, charts, key figures — receives the id chosen
  * here, so the page is always showing one consistent version of the data.
  */
 export function VersionSelector({

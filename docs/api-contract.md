@@ -128,7 +128,7 @@ metadata and is never drawn as a label (ADR-0019).
 | `GET` | `/api/versions/{id}/analytics/series` | chart-ready series + selector options |
 | `GET` | `/api/versions/{id}/analytics/comparison` | two periods of one snapshot |
 | `GET` | `/api/versions/{id}/analytics/versus/{otherId}` | one period across two snapshots |
-| `GET` | `/api/versions/{id}/analytics/executive` | KPIs + ranked insights for one period |
+| `GET` | `/api/versions/{id}/analytics/executive` | key figures for one period |
 
 Query parameters are model dimensions, never period names in the path:
 `table`, `category`, `subcategory`, `metric`, plus `order=file|chronological`
@@ -161,18 +161,17 @@ A comparison answers with one row per series:
     "label": "Total · PPM",
     "delta": { "valueA": 6329.0, "valueB": 5495.0, "delta": -834.0,
                "deltaPercent": -13.18, "direction": "down",
-               "severity": "positive", "status": "ok" },
+               "status": "ok" },
     "sourceA": "H3", "sourceB": "I3"
   }],
-  "insights": [{ "title": "Total · PPM — Aug vs 3Q", "sourceRange": "B2:I17",
-                 "versionId": 2, "versionNumber": 2 }],
   "warnings": []
 }
 ```
 
 `deltaPercent` is `null` when the baseline is missing or zero — `status` says
-which (`missing_a`, `missing_b`, `undefined_percent`). `severity` is `unknown`
-unless the department declares the metric's polarity (ADR-0022).
+which (`missing_a`, `missing_b`, `undefined_percent`). `direction` is the sign
+of the subtraction; no field says whether that movement is good, and there is no
+`insights` key in any response (ADR-0033).
 
 ### Executive view (`/analytics/executive`)
 
@@ -186,30 +185,27 @@ the file), `table` and `metric` (default: the department's headline metric).
   "previousPeriod": { "label": "3Q" },
   "comparisonBasis": "preceding",
   "metric": "PPM",
-  "kpis": [{
-    "label": "Local · PPM", "display": "35,714", "value": 35714.0,
-    "previousDisplay": "9,709", "delta": 26005.0, "deltaPercent": 267.8,
-    "direction": "up", "severity": "negative", "polarity": "lower_is_better",
-    "target": null, "targetStatus": null, "targetBreached": false,
+  "figures": [{
+    "key": "TTL|Local||PPM|", "label": "Local · PPM",
+    "selector": { "table": "TTL", "category": "Local", "metric": "PPM" },
+    "period": { "label": "Aug" },
+    "display": "35,714", "value": 35714.0, "valueType": "number",
+    "previousPeriod": { "label": "3Q" },
+    "previousDisplay": "9,709", "previousValue": 9709.0,
+    "delta": 26005.0, "deltaPercent": 267.8, "direction": "up", "status": "ok",
+    "target": null, "targetDisplay": null, "targetStatus": null,
     "source": "I15", "sourceRange": "B2:I17"
-  }],
-  "insights": [{
-    "kind": "metric_moved", "template": "insights.metric_moved_up",
-    "params": { "label": "Local · PPM", "percent": "267.8%", "period": "Aug",
-                "from": "9,709", "to": "35,714" },
-    "text": "Local · PPM rose 267.8% in Aug (9,709 → 35,714).",
-    "score": 317.8, "severity": "negative",
-    "table": "TTL", "category": "Local", "metric": "PPM",
-    "source": "I15", "sourceRange": "B2:I17", "versionId": 2
   }],
   "warnings": ["reference_period_is_preceding_column", "no_target_in_snapshot"]
 }
 ```
 
-`comparisonBasis` says what the KPI compares against (ADR-0025); `target`
-appears only when the workbook carries one; `template` + `params` let the UI
-write the sentence in any language (ADR-0026); `score` is the documented
-ranking (ADR-0027).
+`comparisonBasis` says what the figure compares against (ADR-0025); `target`
+appears only when the workbook carries one, and `targetStatus`
+(`above`/`below`/`at`) compares the two numbers without saying which side is the
+desirable one. The figures come back in the order the workbook lists them — they
+are not ranked, and the response carries no sentence, score or verdict about
+them (ADR-0033).
 
 ## Issue reports and exports (Sprint 5)
 
@@ -229,11 +225,16 @@ Creating an issue takes a **selector**, never numbers:
 POST /api/versions/2/issues
 { "table": "TTL", "category": "Local", "metric": "PPM", "period": "Aug",
   "title": "Local PPM spike", "description": "Containment in place.",
-  "origin": { "kind": "metric_moved", "template": "insights.metric_moved_up" } }
+  "origin": { "view": "executive", "figure": "TTL|Local||PPM|" } }
 ```
 
+`title` and `severity` are optional: without them the service stores a neutral
+default title (the selection and the period) and `severity: "info"`, for the
+user to set — the system does not classify an issue it did not raise
+(ADR-0033). `origin` is free-form provenance: what the user was looking at.
+
 The response carries the numbers the service read from the snapshot —
-`value`, `previousValue`, `delta`, `deltaPercent`, `trend`, `sourceCell`,
+`value`, `previousValue`, `delta`, `deltaPercent`, `direction`, `sourceCell`,
 `sourceRange` — plus the editorial fields. `PATCH` accepts only `title`,
 `description`, `severity`, `status` and `language`; anything else is refused
 with `validation_error` naming the field (ADR-0029).
@@ -267,3 +268,79 @@ PresentationModel {
   imports[], tables[], charts[], issueReports[], assets[], language
 }
 ```
+
+## The department page (Sprint 8)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/versions/{id}/charts` | one chart per table; `stacked` says how the bars stand |
+| `GET` / `PUT` | `/api/versions/{id}/report` | the report the author built |
+| `POST` | `/api/versions/{id}/report/media` | upload an image to place in a cell |
+| `POST` | `/api/versions/{id}/translation` | the report and the typed titles in another language |
+| `GET` | `/api/reports` | every saved report (`?department=IQC`) |
+| `GET` / `PUT` | `/api/departments/{code}/settings` | chart and table titles |
+| `GET` | `/api/assets/{assetId}` | serve an image |
+| `POST` | `/api/versions/{id}/export/pdf` · `/export/ppt` | the page, or one part of it |
+
+```json
+GET /api/versions/4/charts
+{
+  "metric": "PPM",
+  "charts": [{
+    "table": "TTL", "title": "Total incoming", "stacked": true,
+    "periods": [{ "label": "Aug", "kind": "month" }],
+    "bars": [{ "label": "SKD", "points": [{ "period": "Aug", "value": 0.0, "source": "I8" }] },
+             { "label": "CKD", "points": [] }, { "label": "Local", "points": [] }],
+    "line": { "label": "Total", "points": [] }
+  }]
+}
+```
+
+`title` is what the department settings call it, or `null` for the workbook's
+own name. `stacked` comes from `DepartmentSchema.chart_bars` (ADR-0037).
+
+### The report
+
+```json
+PUT /api/versions/4/report
+{ "content": {
+    "title": "Weekly quality review",
+    "columns": [{ "id": "c1", "name": "Finding" }, { "id": "c2", "name": "Action" }],
+    "rows": [{ "id": "r1", "cells": { "c1": [
+      { "id": "b1", "type": "text", "text": "Local supplier above the limit",
+        "align": "center", "bold": true, "size": "large" },
+      { "id": "b2", "type": "image", "assetId": 2, "align": "center", "width": 80,
+        "caption": "Rejected part" },
+      { "id": "b3", "type": "text", "text": "Dimensional analysis under way." }
+    ] } }]
+} }
+```
+
+A cell is an **ordered list of blocks** — `text`, `image` or `shape` — so the
+same cell can hold text, then a photo, then more text, in exactly that order
+(ADR-0038). Blocks the system cannot draw are dropped rather than stored;
+cells of a deleted column go with it. Shapes are `rectangle`, `circle`, `line`,
+`arrow` or `divider`, with a colour and a size.
+
+Images are uploaded first and placed afterwards:
+
+```json
+POST /api/versions/4/report/media   (multipart)
+→ { "assetId": 2, "url": "/api/assets/2", "mimeType": "image/png", "sizeBytes": 337 }
+```
+
+### Downloads
+
+The three parts can be taken separately, which is what the reports library
+offers:
+
+```json
+POST /api/versions/4/export/pdf
+{ "includeCharts": false, "includeTables": false }   // the report alone
+{ "includeTables": false, "includeReport": false }   // the charts alone
+{ "includeCharts": false, "includeReport": false }   // the tables alone
+{ "language": "ko", "translate": true }              // everything, translated
+```
+
+Translating an export translates the report and only the report; the numbers of
+a translated file are identical to an untranslated one, and a test asserts it.

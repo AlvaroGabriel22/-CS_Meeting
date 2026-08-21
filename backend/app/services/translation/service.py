@@ -37,6 +37,41 @@ class TranslationOutcome:
     source_hash: str
 
 
+@dataclass
+class TextTranslation:
+    """One string, its translation, and how it got there."""
+
+    original: str
+    translated: str
+    cached: bool = False
+    #: False when the string is a number, a code or empty — never sent anywhere
+    translatable: bool = True
+    #: set when the answer changed data and was therefore discarded
+    rejected: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "original": self.original,
+            "translated": self.translated,
+            "cached": self.cached,
+            "translatable": self.translatable,
+            "rejected": self.rejected,
+        }
+
+
+@dataclass
+class TextTranslationOutcome:
+    entries: list[TextTranslation]
+    provider: str
+    model: str | None = None
+    target_language: str = "en"
+    source_language: str = "en"
+
+    @property
+    def mapping(self) -> dict[str, str]:
+        return {entry.original: entry.translated for entry in self.entries}
+
+
 class TranslationService:
     """Translates user content.  Interface strings are i18n, never this."""
 
@@ -54,6 +89,109 @@ class TranslationService:
             )
             .limit(1)
         ).first()
+
+    # -- strings ------------------------------------------------------------ #
+    def translate_texts(
+        self,
+        session: Session,
+        texts: list[str],
+        *,
+        source_language: str,
+        target_language: str,
+        department: str | None = None,
+    ) -> TextTranslationOutcome:
+        """Translate a set of independent strings, cache first.
+
+        Titles, headers, report lines and issue text all arrive here.  Three
+        rules hold for every one of them (ADR-0035):
+
+        * a string that is not language (a number, a code, ``""``) is returned
+          untouched and never leaves the process;
+        * protected terms and data tokens are masked before the request and
+          restored after it;
+        * an answer whose data tokens differ from the source's is **discarded**
+          and the original is kept — a translation may change the language and
+          nothing else.
+        """
+        unique: list[str] = list(dict.fromkeys(texts))
+        outcome = TextTranslationOutcome(
+            entries=[],
+            provider=self._provider.name,
+            target_language=target_language,
+            source_language=source_language,
+        )
+        if source_language == target_language:
+            outcome.entries = [TextTranslation(text, text, cached=True) for text in unique]
+            return outcome
+
+        terms = protected_terms(schema_for(department))
+        results: dict[str, TextTranslation] = {}
+        pending: list[str] = []
+
+        for text in unique:
+            if not documents.is_translatable(text):
+                results[text] = TextTranslation(text, text, cached=True, translatable=False)
+                continue
+            cached = self.lookup(session, documents.text_hash(text), target_language)
+            if cached is not None:
+                cached.last_used_at = datetime.now(timezone.utc)
+                results[text] = TextTranslation(
+                    text, (cached.content or {}).get("text", text), cached=True
+                )
+                continue
+            pending.append(text)
+
+        if pending:
+            masked: list[str] = []
+            mappings: list[dict[str, str]] = []
+            for text in pending:
+                stripped, mapping = documents.mask_protected(text, terms)
+                masked.append(stripped)
+                mappings.append(mapping)
+
+            result = self._provider.translate(
+                TranslationRequest(
+                    segments=masked,
+                    source_language=source_language,
+                    target_language=target_language,
+                    protected_terms=terms,
+                )
+            )
+            outcome.model = result.model
+            outcome.provider = result.provider
+
+            for text, mapping, answer in zip(pending, mappings, result.segments):
+                translated = documents.unmask_protected(answer, mapping)
+                if not documents.preserves_data(text, translated, terms):
+                    logger.warning(
+                        "translation changed data and was discarded: %r -> %r", text, translated
+                    )
+                    results[text] = TextTranslation(text, text, rejected=True)
+                    continue
+                results[text] = TextTranslation(text, translated)
+                session.add(
+                    Translation(
+                        source_hash=documents.text_hash(text),
+                        source_language=source_language,
+                        target_language=target_language,
+                        provider=result.provider,
+                        model=result.model,
+                        source_preview=text[:200],
+                        content={"text": translated},
+                        last_used_at=datetime.now(timezone.utc),
+                    )
+                )
+            logger.info(
+                "translated %d string(s) (%d from cache) %s -> %s via %s",
+                len(pending),
+                len(unique) - len(pending),
+                source_language,
+                target_language,
+                result.provider,
+            )
+
+        outcome.entries = [results[text] for text in unique]
+        return outcome
 
     # -- main entry point --------------------------------------------------- #
     def translate_document(

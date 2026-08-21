@@ -16,6 +16,10 @@ import pytest
 _TMP_DATA = Path(tempfile.mkdtemp(prefix="cs-meeting-tests-"))
 os.environ["CSM_DATA_DIR"] = str(_TMP_DATA)
 os.environ["CSM_DATABASE_URL"] = f"sqlite:///{_TMP_DATA / 'test.db'}"
+# the developer's .env must not change what the suite proves: a test that wants
+# a translation engine registers its own, and the default is always "no engine"
+os.environ["CSM_TRANSLATION_PROVIDER"] = "null"
+os.environ["CSM_ANTHROPIC_API_KEY"] = ""
 
 from app.db.base import Base, engine  # noqa: E402
 from app.db import models  # noqa: E402,F401
@@ -76,3 +80,22 @@ def client():
 
     with TestClient(create_app()) as test_client:
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def clean_department_settings():
+    """Settings are global per department, so one test must not leak into another.
+
+    Everything else in the schema is append-only and scoped to a version; the
+    titles are the one piece of shared configuration.
+    """
+    from app.db.base import SessionLocal
+    from app.db.models import DepartmentSettings
+
+    yield
+    session = SessionLocal()
+    try:
+        session.query(DepartmentSettings).delete()
+        session.commit()
+    finally:
+        session.close()

@@ -1,19 +1,15 @@
 {
   "app": {
-    "name": "CS Meeting",
-    "tagline": "Apresentações executivas de qualidade"
+    "name": "CS Meeting"
   },
   "nav": {
     "home": "Início",
     "settings": "Configurações",
-    "language": "Idioma"
+    "language": "Idioma",
+    "reports": "Relatórios"
   },
   "home": {
-    "title": "Reunião de Qualidade",
-    "subtitle": "Apresentações executivas semanais dos departamentos de qualidade",
-    "openPresentation": "Abrir apresentação",
-    "noPresentation": "Nenhuma apresentação ainda",
-    "createFirst": "Importe o raw data para começar"
+    "open": "Abrir"
   },
   "department": {
     "IQC": "IQC",
@@ -30,13 +26,6 @@
     "emptyIssues": "Nenhum issue report ainda.",
     "showingVersion": "Versão {{version}} · {{label}}"
   },
-  "card": {
-    "status": "Status",
-    "lastUpdate": "Última atualização",
-    "issues": "Issues",
-    "period": "Período",
-    "never": "Nunca"
-  },
   "status": {
     "draft": "Rascunho",
     "ready": "Pronta",
@@ -45,13 +34,7 @@
   },
   "settings": {
     "title": "Configuração",
-    "chooseDepartment": "Escolha um departamento",
-    "rawDataUpload": "Upload de Raw Data",
-    "issueReport": "Issue Report",
-    "presentationManagement": "Gestão de Apresentações",
-    "versions": "Versões",
-    "translations": "Traduções",
-    "export": "Exportar"
+    "chooseDepartment": "Escolha um departamento"
   },
   "limit": {
     "title": "Limite de apresentações atingido",
@@ -69,136 +52,78 @@
     "save": "Salvar",
     "saveVersion": "Salvar versão",
     "sourceRange": "Intervalo de origem",
-    "parserVersion": "Versão do parser"
+    "parserVersion": "Versão do parser",
+    "saved": "Salvo"
   },
-  "import": {
-    "title": "Importação de raw data",
-    "subtitle": "Envie a planilha do departamento, confira o que o parser entendeu e salve a versão.",
-    "chooseFile": "Escolher arquivo",
-    "noFile": "Nenhum arquivo selecionado",
-    "parsing": "Interpretando…",
-    "preview": "Prévia do parser",
-    "parserVersion": "Parser {{version}}",
-    "reused": "já interpretado, resultado reutilizado",
-    "clean": "Sem avisos",
-    "warningCount": "{{count}} aviso(s)",
-    "tablesDetected": "Tabelas detectadas",
-    "periodsDetected": "Períodos detectados",
-    "version": "Versão",
-    "notSavedYet": "Ainda não salva",
-    "table": "Tabela",
-    "hierarchy": "Hierarquia",
-    "rows": "Linhas",
-    "columns": "Colunas",
-    "periodsShort": "Períodos",
-    "saved": "Salvo como versão {{version}}",
-    "open": "Importar raw data"
-  },
-  "analytics": {
-    "table": "Tabela",
-    "metric": "Métrica",
-    "allMetrics": "Todas as métricas",
-    "periodA": "Período A",
-    "periodB": "Período B",
-    "row": "Linha",
-    "delta": "Variação",
-    "periodComparison": "{{b}} comparado com {{a}}",
-    "versionComparison": "Comparar com outra versão",
-    "compareWith": "Versão",
-    "pickVersion": "Escolher…",
-    "orderHint": "Alternar entre a ordem das colunas do arquivo e a ordem cronológica",
-    "chart": {
+  "report": {
+    "reportTitle": "Título do relatório",
+    "titlePlaceholder": "ex.: Análise semanal de qualidade",
+    "startWithAColumn": "Crie uma coluna para começar o relatório.",
+    "addColumn": "Adicionar coluna",
+    "addRow": "Adicionar linha",
+    "columnName": "Nome da coluna",
+    "removeColumn": "Remover coluna",
+    "removeRow": "Remover linha",
+    "removeBlock": "Remover",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "moveLeft": "Mover para a esquerda",
+    "moveRight": "Mover para a direita",
+    "addText": "Texto",
+    "addImage": "Imagem",
+    "addShape": "Forma",
+    "textPlaceholder": "Escreva aqui…",
+    "captionPlaceholder": "Legenda",
+    "imageWidth": "Largura da imagem",
+    "size": {
+      "small": "Pequeno",
+      "normal": "Normal",
+      "large": "Grande",
+      "heading": "Título"
+    },
+    "shape": {
+      "rectangle": "Retângulo",
+      "circle": "Círculo",
       "line": "Linha",
-      "bar": "Barras"
-    },
-    "order": {
-      "file": "Ordem do arquivo",
-      "chronological": "Cronológica"
-    },
-    "status": {
-      "ok": "",
-      "missing_a": "sem valor em A",
-      "missing_b": "sem valor em B",
-      "undefined_percent": "sem percentual: base é zero"
+      "arrow": "Seta",
+      "divider": "Divisória"
     }
   },
   "executive": {
+    "version": "Versão"
+  },
+  "config": {
+    "title": "Configurações",
+    "upload": "Raw data",
+    "titles": "Títulos",
+    "report": "Relatório",
+    "chooseFile": "Escolher arquivo",
+    "noFile": "Nenhum arquivo selecionado",
+    "tablesDetected": "Tabelas detectadas",
+    "periodsDetected": "Períodos detectados",
+    "parserVersion": "Parser",
+    "saveVersion": "Salvar versão",
+    "saved": "Salvo",
+    "uploadFirst": "Faça o upload de uma planilha primeiro.",
+    "titlesHint": "Renomeie o que aparece acima de cada gráfico e tabela. Os números abaixo deles vêm sempre da planilha.",
+    "chartTitles": "Gráficos",
+    "tableTitles": "Tabelas",
+    "keepWorkbookName": "Manter “{{name}}”"
+  },
+  "reports": {
+    "title": "Relatórios",
+    "all": "Todos",
+    "empty": "Nenhum relatório salvo ainda.",
+    "department": "Departamento",
     "version": "Versão",
-    "period": "Período",
-    "metric": "Métrica",
-    "table": "Tabela",
-    "kpis": "Indicadores",
-    "insights": "Análise executiva",
-    "noInsights": "Ainda não há o que comparar neste período.",
-    "noReference": "Sem período de referência",
-    "target": "Target",
-    "targetStatus": {
-      "above": "acima do target",
-      "below": "abaixo do target",
-      "at": "no target"
-    },
-    "basis": {
-      "same_kind": "vs {{period}}",
-      "preceding": "vs {{period}} (coluna anterior)",
-      "none": "sem referência"
-    },
-    "compareVersions": "Comparação de versões",
-    "warnings": {
-      "no_target_in_snapshot": "Esta planilha não traz target.",
-      "reference_period_is_preceding_column": "Não há período anterior do mesmo tipo no arquivo: comparado com a coluna anterior.",
-      "no_reference_period_in_snapshot": "Este é o primeiro período do arquivo.",
-      "no_period_in_snapshot": "Nenhum período foi detectado neste snapshot."
-    }
-  },
-  "insights": {
-    "metric_moved_up": "{{label}} subiu {{percent}} em {{period}} ({{from}} → {{to}}).",
-    "metric_moved_down": "{{label}} caiu {{percent}} em {{period}} ({{from}} → {{to}}).",
-    "metric_moved_absolute_up": "{{label}} subiu {{delta}} em {{period}} ({{from}} → {{to}}).",
-    "metric_moved_absolute_down": "{{label}} caiu {{delta}} em {{period}} ({{from}} → {{to}}).",
-    "largest_movement_up": "{{category}} teve o maior aumento de {{metric}} entre as {{count}} categorias analisadas ({{percent}} em {{period}}).",
-    "largest_movement_down": "{{category}} teve a maior redução de {{metric}} entre as {{count}} categorias analisadas ({{percent}} em {{period}}).",
-    "target_above": "{{label}} está acima do target em {{period}} ({{value}} vs {{target}}).",
-    "target_below": "{{label}} está abaixo do target em {{period}} ({{value}} vs {{target}}).",
-    "trend_up": "{{label}} subiu em {{points}} {{granularity}}s consecutivos ({{from}} → {{to}}).",
-    "trend_down": "{{label}} caiu em {{points}} {{granularity}}s consecutivos ({{from}} → {{to}})."
-  },
-  "issues": {
-    "title": "Issue reports",
-    "empty": "Nenhum issue registrado neste período.",
-    "raiseFromInsight": "Registrar issue a partir de uma análise",
-    "raise": "Registrar",
-    "status": "Status",
-    "severity": "Severidade",
-    "edit": "Editar",
-    "attach": "Anexar imagem",
-    "trend": "Tendência",
-    "descriptionPlaceholder": "O que está sendo feito a respeito?",
-    "statuses": {
-      "open": "Aberto",
-      "in_progress": "Em andamento",
-      "resolved": "Resolvido",
-      "closed": "Fechado"
-    },
-    "severities": {
-      "info": "Informativo",
-      "low": "Baixa",
-      "medium": "Média",
-      "high": "Alta"
-    }
-  },
-  "trends": {
-    "rising": "em alta",
-    "falling": "em queda",
-    "stable": "estável",
-    "volatile": "oscilante",
-    "insufficient_data": "histórico insuficiente",
-    "improving": "melhorando",
-    "worsening": "piorando",
-    "neutral": "neutra",
-    "unknown": "sem classificação"
-  },
-  "export": {
-    "pdf": "Exportar PDF",
-    "ppt": "Exportar PPT"
+    "reportTitle": "Título",
+    "size": "Tamanho",
+    "updated": "Atualizado",
+    "download": "Download",
+    "counts": "{{columns}} colunas · {{rows}} linhas · {{images}} imagens",
+    "partReport": "Relatório",
+    "partCharts": "Gráficos",
+    "partTables": "Tabelas",
+    "partAllPpt": "PPT completo"
   }
 }

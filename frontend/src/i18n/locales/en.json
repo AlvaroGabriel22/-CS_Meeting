@@ -1,19 +1,15 @@
 {
   "app": {
-    "name": "CS Meeting",
-    "tagline": "Quality executive presentations"
+    "name": "CS Meeting"
   },
   "nav": {
     "home": "Home",
     "settings": "Settings",
-    "language": "Language"
+    "language": "Language",
+    "reports": "Reports"
   },
   "home": {
-    "title": "Quality Meeting",
-    "subtitle": "Weekly executive presentations for the quality departments",
-    "openPresentation": "Open presentation",
-    "noPresentation": "No presentation yet",
-    "createFirst": "Import raw data to start"
+    "open": "Open"
   },
   "department": {
     "IQC": "IQC",
@@ -30,13 +26,6 @@
     "emptyIssues": "No issue report yet.",
     "showingVersion": "Version {{version}} · {{label}}"
   },
-  "card": {
-    "status": "Status",
-    "lastUpdate": "Last update",
-    "issues": "Issues",
-    "period": "Period",
-    "never": "Never"
-  },
   "status": {
     "draft": "Draft",
     "ready": "Ready",
@@ -45,13 +34,7 @@
   },
   "settings": {
     "title": "Configuration",
-    "chooseDepartment": "Choose a department",
-    "rawDataUpload": "Raw Data Upload",
-    "issueReport": "Issue Report",
-    "presentationManagement": "Presentation Management",
-    "versions": "Versions",
-    "translations": "Translations",
-    "export": "Export"
+    "chooseDepartment": "Choose a department"
   },
   "limit": {
     "title": "Presentation limit reached",
@@ -69,136 +52,78 @@
     "save": "Save",
     "saveVersion": "Save version",
     "sourceRange": "Source range",
-    "parserVersion": "Parser version"
+    "parserVersion": "Parser version",
+    "saved": "Saved"
   },
-  "import": {
-    "title": "Raw data import",
-    "subtitle": "Upload the department workbook, check what the parser understood, then save the version.",
-    "chooseFile": "Choose file",
-    "noFile": "No file selected",
-    "parsing": "Parsing…",
-    "preview": "Parser preview",
-    "parserVersion": "Parser {{version}}",
-    "reused": "already parsed, result reused",
-    "clean": "No warnings",
-    "warningCount": "{{count}} warning(s)",
-    "tablesDetected": "Tables detected",
-    "periodsDetected": "Periods detected",
-    "version": "Version",
-    "notSavedYet": "Not saved yet",
-    "table": "Table",
-    "hierarchy": "Hierarchy",
-    "rows": "Rows",
-    "columns": "Columns",
-    "periodsShort": "Periods",
-    "saved": "Saved as version {{version}}",
-    "open": "Import raw data"
-  },
-  "analytics": {
-    "table": "Table",
-    "metric": "Metric",
-    "allMetrics": "All metrics",
-    "periodA": "Period A",
-    "periodB": "Period B",
-    "row": "Row",
-    "delta": "Delta",
-    "periodComparison": "{{b}} compared with {{a}}",
-    "versionComparison": "Compare with another version",
-    "compareWith": "Version",
-    "pickVersion": "Choose…",
-    "orderHint": "Switch between the file's column order and chronological order",
-    "chart": {
+  "report": {
+    "reportTitle": "Report title",
+    "titlePlaceholder": "e.g. Weekly quality review",
+    "startWithAColumn": "Create a column to start the report.",
+    "addColumn": "Add column",
+    "addRow": "Add row",
+    "columnName": "Column name",
+    "removeColumn": "Remove column",
+    "removeRow": "Remove row",
+    "removeBlock": "Remove",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "addText": "Text",
+    "addImage": "Image",
+    "addShape": "Shape",
+    "textPlaceholder": "Write here…",
+    "captionPlaceholder": "Caption",
+    "imageWidth": "Image width",
+    "size": {
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large",
+      "heading": "Heading"
+    },
+    "shape": {
+      "rectangle": "Rectangle",
+      "circle": "Circle",
       "line": "Line",
-      "bar": "Bars"
-    },
-    "order": {
-      "file": "File order",
-      "chronological": "Chronological"
-    },
-    "status": {
-      "ok": "",
-      "missing_a": "no value in A",
-      "missing_b": "no value in B",
-      "undefined_percent": "no percentage: baseline is zero"
+      "arrow": "Arrow",
+      "divider": "Divider"
     }
   },
   "executive": {
+    "version": "Version"
+  },
+  "config": {
+    "title": "Configuration",
+    "upload": "Raw data",
+    "titles": "Titles",
+    "report": "Report",
+    "chooseFile": "Choose file",
+    "noFile": "No file selected",
+    "tablesDetected": "Tables detected",
+    "periodsDetected": "Periods detected",
+    "parserVersion": "Parser",
+    "saveVersion": "Save version",
+    "saved": "Saved",
+    "uploadFirst": "Upload a workbook first.",
+    "titlesHint": "Rename what appears above each chart and table. The numbers under them always come from the workbook.",
+    "chartTitles": "Charts",
+    "tableTitles": "Tables",
+    "keepWorkbookName": "Keep “{{name}}”"
+  },
+  "reports": {
+    "title": "Reports",
+    "all": "All",
+    "empty": "No report has been saved yet.",
+    "department": "Department",
     "version": "Version",
-    "period": "Period",
-    "metric": "Metric",
-    "table": "Table",
-    "kpis": "Key indicators",
-    "insights": "Executive insights",
-    "noInsights": "Nothing to compare in this period yet.",
-    "noReference": "No reference period",
-    "target": "Target",
-    "targetStatus": {
-      "above": "above target",
-      "below": "below target",
-      "at": "on target"
-    },
-    "basis": {
-      "same_kind": "vs {{period}}",
-      "preceding": "vs {{period}} (previous column)",
-      "none": "no reference"
-    },
-    "compareVersions": "Version comparison",
-    "warnings": {
-      "no_target_in_snapshot": "This workbook carries no target.",
-      "reference_period_is_preceding_column": "No earlier period of the same kind in the file: compared with the previous column.",
-      "no_reference_period_in_snapshot": "This is the first period in the file.",
-      "no_period_in_snapshot": "No period was detected in this snapshot."
-    }
-  },
-  "insights": {
-    "metric_moved_up": "{{label}} rose {{percent}} in {{period}} ({{from}} → {{to}}).",
-    "metric_moved_down": "{{label}} fell {{percent}} in {{period}} ({{from}} → {{to}}).",
-    "metric_moved_absolute_up": "{{label}} rose by {{delta}} in {{period}} ({{from}} → {{to}}).",
-    "metric_moved_absolute_down": "{{label}} fell by {{delta}} in {{period}} ({{from}} → {{to}}).",
-    "largest_movement_up": "{{category}} showed the largest increase in {{metric}} among the {{count}} categories analysed ({{percent}} in {{period}}).",
-    "largest_movement_down": "{{category}} showed the largest decrease in {{metric}} among the {{count}} categories analysed ({{percent}} in {{period}}).",
-    "target_above": "{{label}} is above target in {{period}} ({{value}} vs {{target}}).",
-    "target_below": "{{label}} is below target in {{period}} ({{value}} vs {{target}}).",
-    "trend_up": "{{label}} has risen across {{points}} consecutive {{granularity}}s ({{from}} → {{to}}).",
-    "trend_down": "{{label}} has fallen across {{points}} consecutive {{granularity}}s ({{from}} → {{to}})."
-  },
-  "issues": {
-    "title": "Issue reports",
-    "empty": "No issue raised for this period yet.",
-    "raiseFromInsight": "Raise an issue from an insight",
-    "raise": "Raise issue",
-    "status": "Status",
-    "severity": "Severity",
-    "edit": "Edit",
-    "attach": "Attach image",
-    "trend": "Trend",
-    "descriptionPlaceholder": "What is being done about it?",
-    "statuses": {
-      "open": "Open",
-      "in_progress": "In progress",
-      "resolved": "Resolved",
-      "closed": "Closed"
-    },
-    "severities": {
-      "info": "Info",
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High"
-    }
-  },
-  "trends": {
-    "rising": "rising",
-    "falling": "falling",
-    "stable": "stable",
-    "volatile": "volatile",
-    "insufficient_data": "not enough history",
-    "improving": "improving",
-    "worsening": "worsening",
-    "neutral": "neutral",
-    "unknown": "unclassified"
-  },
-  "export": {
-    "pdf": "Export PDF",
-    "ppt": "Export PPT"
+    "reportTitle": "Title",
+    "size": "Size",
+    "updated": "Updated",
+    "download": "Download",
+    "counts": "{{columns}} columns · {{rows}} rows · {{images}} images",
+    "partReport": "Report",
+    "partCharts": "Charts",
+    "partTables": "Tables",
+    "partAllPpt": "Full PPT"
   }
 }

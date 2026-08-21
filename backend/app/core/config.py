@@ -32,13 +32,18 @@ class Settings(BaseSettings):
         "application/vnd.ms-excel.sheet.macroEnabled.12",
         "application/octet-stream",  # some browsers send this for .xlsx
     )
-    max_image_mb: int = 10
+    #: the file is stored as uploaded, never re-encoded, so this is a limit
+    #: on size and never on quality
+    max_image_mb: int = 15
     allowed_image_mimetypes: tuple[str, ...] = ("image/png", "image/jpeg", "image/webp", "image/gif")
 
     # --- translation ------------------------------------------------------ #
-    translation_provider: str = "null"  # null | anthropic (configured in Sprint 3)
+    #: null (returns the source) | anthropic (remote) | ollama (this machine)
+    translation_provider: str = "null"
     translation_model: str = "claude-sonnet-5"
     anthropic_api_key: str | None = None
+    ollama_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = "gemma4:12b"
 
     # --- i18n ------------------------------------------------------------- #
     default_language: str = "en"

@@ -453,8 +453,8 @@ export interface VersionView {
  * Everything is expressed in model terms; the origin cell travels along so any
  * number on a chart can be traced back to the workbook.
  * -------------------------------------------------------------------------- */
+/** the sign of a subtraction — never a statement about whether it is good */
 export type Direction = 'up' | 'down' | 'flat' | 'unknown'
-export type Severity = 'positive' | 'negative' | 'neutral' | 'unknown'
 export type DeltaStatus = 'ok' | 'missing_a' | 'missing_b' | 'undefined_percent'
 export type SeriesOrder = 'file' | 'chronological'
 
@@ -502,252 +502,176 @@ export interface SeriesResponse {
   options: SelectorOptions
 }
 
-export interface Delta {
-  valueA: number | null
-  valueB: number | null
-  displayA: string | null
-  displayB: string | null
-  delta: number | null
-  /** null whenever the baseline is missing or zero — never invented */
-  deltaPercent: number | null
-  direction: Direction
-  severity: Severity
-  status: DeltaStatus
-}
-
-export interface ComparisonRow {
-  key: string
-  label: string
-  selector: SeriesSelector
-  delta: Delta
-  sourceA: string | null
-  sourceB: string | null
-}
-
-export interface ExecutiveInsight {
-  title: string
-  department: Department | null
-  table: string | null
-  category: string | null
-  subcategory: string | null
-  metric: string | null
-  seriesType: string | null
-  period: Period | null
-  referencePeriod: Period | null
-  value: number | null
-  previousValue: number | null
-  displayValue: string | null
-  displayPrevious: string | null
-  delta: number | null
-  deltaPercent: number | null
-  direction: Direction
-  severity: Severity
-  status: DeltaStatus
-  source: string | null
-  sourceRange: string | null
-  versionId: number | null
-  versionNumber: number | null
-}
-
-export interface ComparisonResponse {
-  kind: 'periods' | 'versions'
-  versionId: number
-  versionNumber: number | null
-  comparedVersionId: number | null
-  comparedVersionNumber: number | null
-  department: Department
-  periodA: Period | null
-  periodB: Period | null
-  rows: ComparisonRow[]
-  insights: ExecutiveInsight[]
-  warnings: string[]
-  meta: Record<string, unknown>
-}
-
 /* -------------------------------------------------------------------------- *
- * Executive layer (Sprint 4) — KPIs and ranked insights.
+ * Charts — one per table, drawn from values the workbook already holds.
  * -------------------------------------------------------------------------- */
-export type TargetStatus = 'above' | 'below' | 'at'
-export type ComparisonBasis = 'same_kind' | 'preceding' | 'none'
-export type Polarity = 'lower_is_better' | 'higher_is_better' | 'neutral'
-
-export interface Kpi {
-  trend?: Trend | null
-  key: string
-  label: string
-  selector: SeriesSelector
-  period: Period
+export interface ChartPoint {
+  period: string
+  /** null where the file has a gap — never a zero */
   value: number | null
   display: string | null
-  valueType: ValueType
-  previousPeriod: Period | null
-  previousValue: number | null
-  previousDisplay: string | null
-  delta: number | null
-  deltaPercent: number | null
-  direction: Direction
-  severity: Severity
-  status: DeltaStatus
-  /** declared by the department, never guessed */
-  polarity: Polarity | null
-  /** only when the workbook itself carries a target */
-  target: number | null
-  targetDisplay: string | null
-  targetStatus: TargetStatus | null
-  targetBreached: boolean
+  /** provenance: the cell the number came from */
   source: string | null
-  sourceRange: string | null
 }
 
-export interface Insight {
-  kind: string
-  trend?: Trend | null
-  /** i18n key — the sentence is rendered in the user's language */
-  template: string
-  params: Record<string, string | number | null>
-  /** English rendering, used as a fallback and by the exporters */
-  text: string
-  score: number
-  direction: Direction
-  severity: Severity
-  status: DeltaStatus
-  value: number | null
-  previousValue: number | null
-  displayValue: string | null
-  displayPrevious: string | null
-  delta: number | null
-  deltaPercent: number | null
-  target: number | null
-  targetStatus: TargetStatus | null
-  department: Department | null
-  table: string | null
-  category: string | null
-  subcategory: string | null
-  metric: string | null
-  seriesType: string | null
-  period: Period | null
-  referencePeriod: Period | null
-  source: string | null
-  sourceRange: string | null
-  versionId: number | null
-  versionNumber: number | null
+export interface ChartSeries {
+  key: string
+  label: string
+  points: ChartPoint[]
 }
 
-export interface ExecutiveView {
-  versionId: number
-  versionNumber: number | null
-  versionLabel: string | null
-  department: Department
-  period: Period | null
-  previousPeriod: Period | null
-  comparisonBasis: ComparisonBasis
-  metric: string | null
+export interface Chart {
+  table: string
+  /** the name given in the department settings, if any */
+  title: string | null
+  metric: string
+  sheet: string
+  sourceRange: string
+  /** true when the bars are the parts of the whole and stack into it */
+  stacked: boolean
   periods: Period[]
-  options: SelectorOptions
-  kpis: Kpi[]
-  insights: Insight[]
-  warnings: string[]
+  bars: ChartSeries[]
+  line: ChartSeries | null
+}
+
+export interface ChartsResponse {
+  versionId: number
+  department: Department
+  metric: string | null
+  charts: Chart[]
 }
 
 /* -------------------------------------------------------------------------- *
- * Trends and issue reports (Sprint 5).
+ * The report — a table the author builds by hand.
  * -------------------------------------------------------------------------- */
-export type TrendClassification =
-  | 'rising'
-  | 'falling'
-  | 'stable'
-  | 'volatile'
-  | 'insufficient_data'
-export type TrendQuality = 'improving' | 'worsening' | 'stable' | 'neutral' | 'unknown'
+export type BlockAlign = 'left' | 'center' | 'right'
+export type BlockType = 'text' | 'image' | 'shape'
+export type ShapeKind = 'rectangle' | 'circle' | 'line' | 'arrow' | 'divider'
+export type TextSize = 'small' | 'normal' | 'large' | 'heading'
 
-export interface Trend {
-  classification: TrendClassification
-  quality: TrendQuality
-  points: number
-  granularity: string | null
-  periodLabels: string[]
-  values: number[]
-  consecutive: number
-  firstValue: number | null
-  lastValue: number | null
-  change: number | null
-  changePercent: number | null
-  polarity: Polarity | null
+export interface ReportBlock {
+  id: string
+  type: BlockType
+  align: BlockAlign
+  /** text */
+  text?: string | null
+  bold?: boolean | null
+  italic?: boolean | null
+  size?: TextSize | number | null
+  /** image */
+  assetId?: number | null
+  url?: string | null
+  caption?: string | null
+  width?: number | null
+  /** shape */
+  shape?: ShapeKind | null
+  color?: string | null
 }
 
-export type IssueStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
-export type IssueSeverity = 'info' | 'low' | 'medium' | 'high'
+export interface ReportColumn {
+  id: string
+  name: string
+}
 
-export interface IssueMedia {
+export interface ReportRow {
+  id: string
+  /** column id -> the blocks of that cell, in the author's order */
+  cells: Record<string, ReportBlock[]>
+}
+
+export interface ReportContent {
+  title: string
+  columns: ReportColumn[]
+  rows: ReportRow[]
+}
+
+export interface ReportMedia {
   id: number
   assetId: number
   url: string
   mimeType: string
   sizeBytes: number
   caption: string | null
-  orderIndex: number
 }
 
-export interface Issue {
-  id: number
+export interface Report {
   versionId: number
   department: Department
-  period: Period | null
-  referencePeriod: Period | null
-  table: string | null
-  category: string | null
-  subcategory: string | null
-  metric: string | null
-  seriesType: string | null
-  /** editorial — the only half an edit may touch */
-  title: string
-  description: string | null
-  descriptionDoc: Record<string, unknown>
-  translationKey: string | null
+  versionNumber: number | null
+  versionLabel: string | null
   language: string
-  severity: IssueSeverity
-  status: IssueStatus
-  /** analytical — read from the snapshot, never edited by hand */
-  value: number | null
-  previousValue: number | null
-  delta: number | null
-  deltaPercent: number | null
-  target: number | null
-  direction: Direction | null
-  analyticalSeverity: Severity | null
-  trend: Trend | null
-  sourceCell: string | null
-  sourceRange: string | null
-  origin: Record<string, unknown> | null
-  media: IssueMedia[]
-  createdAt: string
-  updatedAt: string
+  content: ReportContent
+  text: string
+  translationKey: string | null
+  media: ReportMedia[]
+  updatedAt: string | null
 }
 
-export interface IssueCreate {
-  period?: string
-  table?: string
-  category?: string
-  subcategory?: string
-  metric?: string
-  title?: string
-  description?: string
-  severity?: IssueSeverity
-  origin?: Record<string, unknown>
+/**
+ * Everything a person wrote, in another language.
+ *
+ * The report and the titles given to charts and tables are the only strings
+ * the system cannot ship in a language bundle — nobody knows them before
+ * someone types them. Everything else on the page is interface text or a label
+ * the workbook carries, and neither is ever sent to a provider.
+ */
+export interface AuthoredTranslation {
+  versionId: number
+  department: Department
+  sourceLanguage: string
+  targetLanguage: string
+  provider: string
+  model: string | null
+  /** the author's report, unchanged — always available */
+  original: ReportContent
+  translated: ReportContent
+  chartTitles: Record<string, string>
+  tableTitles: Record<string, string>
+  stringCount: number
+  cachedCount: number
+  rejectedCount: number
 }
 
-export interface IssueUpdate {
-  title?: string
-  description?: string
-  severity?: IssueSeverity
-  status?: IssueStatus
+export interface ReportSummary {
+  versionId: number
+  department: Department
+  versionNumber: number | null
+  versionLabel: string | null
+  title: string
+  columnCount: number
+  rowCount: number
+  imageCount: number
+  language: string
+  updatedAt: string | null
+}
+
+export interface UploadedImage {
+  assetId: number
+  url: string
+  mimeType: string
+  sizeBytes: number
+}
+
+export interface DepartmentSettings {
+  department: Department
+  chartTitles: Record<string, string>
+  tableTitles: Record<string, string>
+}
+
+export interface TranslationStatus {
+  provider: string
+  model: string | null
+  languages: string[]
+  defaultLanguage: string
+  /** false when no provider is configured: text is shown as written */
+  active: boolean
 }
 
 export interface ExportRequest {
-  period?: string
-  table?: string
-  metric?: string
-  compareWith?: number
-  includeTables?: boolean
   includeCharts?: boolean
+  includeTables?: boolean
+  includeReport?: boolean
+  /** the language the report is being read in */
+  language?: string
+  translate?: boolean
 }

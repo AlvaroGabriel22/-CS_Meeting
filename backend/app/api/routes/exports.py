@@ -1,9 +1,9 @@
-"""Export the executive review as PDF or PowerPoint.
+"""Export the department page as PDF or PowerPoint.
 
-The request carries the page's own state — version, period, table, metric and
-the version being compared — so the file is exactly what the user was looking
-at (ADR-0030).  Both formats are produced from one context, so they can never
-tell different stories.
+The page shows one snapshot: its charts, its tables and its report.  The
+request carries the version and the language being read, and both formats are
+produced from one context, so they can never tell different stories
+(ADR-0030, ADR-0036).
 """
 
 from __future__ import annotations
@@ -27,27 +27,30 @@ router = APIRouter(prefix="/api/versions", tags=["export"])
 
 
 class ExportRequest(CamelModel):
-    """The state of the page being exported."""
+    """What to put in the file.
 
-    period: str | None = None
-    table: str | None = None
-    metric: str | None = None
-    #: when the page is showing a version comparison
-    compare_with: int | None = None
-    include_tables: bool = True
+    The reports library offers the three parts separately — report, charts,
+    tables — so each can be downloaded on its own (ADR-0038).
+    """
+
     include_charts: bool = True
+    include_tables: bool = True
+    include_report: bool = True
+    #: the language the report is being read in — the file must say what the
+    #: screen says, and only the report is ever translated (ADR-0036)
+    language: str | None = None
+    translate: bool = False
 
 
 def _context(session: Session, version_id: int, request: ExportRequest):
     return export_context.build_context(
         session,
         version_id=version_id,
-        period=request.period,
-        table=request.table,
-        metric=request.metric,
-        compare_with=request.compare_with,
         include_tables=request.include_tables,
         include_charts=request.include_charts,
+        include_report=request.include_report,
+        language=request.language,
+        translate=request.translate,
     )
 
 
@@ -57,7 +60,7 @@ def export_pdf(
     request: ExportRequest | None = None,
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    """A structured PDF of the current executive view."""
+    """A structured PDF of the department page."""
     request = request or ExportRequest()
     context = _context(session, version_id, request)
     settings = get_settings()
@@ -72,7 +75,7 @@ def export_pptx(
     request: ExportRequest | None = None,
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    """An editable PowerPoint deck of the current executive view."""
+    """An editable PowerPoint deck of the department page."""
     request = request or ExportRequest()
     context = _context(session, version_id, request)
     settings = get_settings()

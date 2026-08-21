@@ -5,9 +5,11 @@ Layering (see docs/data-model.md):
 * **facts** — ``RawDataFile`` -> ``DepartmentData`` -> ``TableDefinition`` /
   ``TableColumn`` / ``TableRow`` / ``TableCell``.  Written once at import time
   and never edited: re-importing creates a new ``DepartmentData``.
-* **editorial** — ``ChartDefinition`` and the ``IssueReport*`` family belong to
-  a ``PresentationVersion`` and are what the user edits.
-* **support** — ``Translation`` (cache), ``Asset`` (files on disk).
+* **editorial** — ``ChartDefinition`` and ``VersionReport`` belong to a
+  ``PresentationVersion`` and are what the user edits.  The report is written
+  by hand; nothing derives it from the numbers (ADR-0036).
+* **support** — ``Translation`` (cache), ``Asset`` (files on disk, referenced
+  by ``ReportMedia``).
 
 Imported tables are *referenced* by versions, never copied, so a new version
 costs only the editable content.
@@ -48,22 +50,6 @@ class PresentationStatus(str, enum.Enum):
     READY = "ready"
     ARCHIVED = "archived"
     TRASHED = "trashed"
-
-
-class IssueStatus(str, enum.Enum):
-    """Where an issue stands.  Never inferred from the numbers improving."""
-
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
-    RESOLVED = "resolved"
-    CLOSED = "closed"
-
-
-class IssueSeverity(str, enum.Enum):
-    INFO = "info"
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
 
 
 class VersionStatus(str, enum.Enum):
@@ -133,8 +119,8 @@ class PresentationVersion(TimestampMixin, Base):
     charts: Mapped[list["ChartDefinition"]] = relationship(
         back_populates="version", cascade="all, delete-orphan", order_by="ChartDefinition.order_index"
     )
-    issue_reports: Mapped[list["IssueReport"]] = relationship(
-        back_populates="version", cascade="all, delete-orphan", order_by="IssueReport.order_index"
+    report: Mapped["VersionReport | None"] = relationship(
+        back_populates="version", cascade="all, delete-orphan", uselist=False
     )
 
 
@@ -337,83 +323,6 @@ class ChartDefinition(TimestampMixin, Base):
     version: Mapped[PresentationVersion] = relationship(back_populates="charts")
 
 
-class IssueReport(TimestampMixin, Base):
-    __tablename__ = "issue_reports"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    version_id: Mapped[int] = mapped_column(
-        ForeignKey("presentation_versions.id", ondelete="CASCADE"), index=True
-    )
-    department: Mapped[Department] = mapped_column(
-        SAEnum(Department, native_enum=False, length=16), nullable=False
-    )
-    order_index: Mapped[int] = mapped_column(Integer, default=0)
-    title: Mapped[str] = mapped_column(String(300), default="")
-    language: Mapped[str] = mapped_column(String(10), default="en")  # language it was authored in
-    config: Mapped[dict] = mapped_column(JSON, default=dict)
-
-    version: Mapped[PresentationVersion] = relationship(back_populates="issue_reports")
-    columns: Mapped[list["IssueReportColumn"]] = relationship(
-        back_populates="report", cascade="all, delete-orphan", order_by="IssueReportColumn.index"
-    )
-    rows: Mapped[list["IssueReportRow"]] = relationship(
-        back_populates="report", cascade="all, delete-orphan", order_by="IssueReportRow.index"
-    )
-    cells: Mapped[list["IssueReportCell"]] = relationship(
-        back_populates="report", cascade="all, delete-orphan"
-    )
-
-
-class IssueReportColumn(Base):
-    __tablename__ = "issue_report_columns"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    issue_report_id: Mapped[int] = mapped_column(
-        ForeignKey("issue_reports.id", ondelete="CASCADE"), index=True
-    )
-    index: Mapped[int] = mapped_column(Integer, nullable=False)
-    title: Mapped[str] = mapped_column(String(300), default="")
-    width: Mapped[float | None] = mapped_column(Float)
-    align: Mapped[str] = mapped_column(String(10), default="left")
-
-    report: Mapped[IssueReport] = relationship(back_populates="columns")
-
-
-class IssueReportRow(Base):
-    __tablename__ = "issue_report_rows"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    issue_report_id: Mapped[int] = mapped_column(
-        ForeignKey("issue_reports.id", ondelete="CASCADE"), index=True
-    )
-    index: Mapped[int] = mapped_column(Integer, nullable=False)
-    height: Mapped[float | None] = mapped_column(Float)
-
-    report: Mapped[IssueReport] = relationship(back_populates="rows")
-
-
-class IssueReportCell(Base):
-    __tablename__ = "issue_report_cells"
-    __table_args__ = (UniqueConstraint("row_id", "column_id", name="uq_issue_cell"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    issue_report_id: Mapped[int] = mapped_column(
-        ForeignKey("issue_reports.id", ondelete="CASCADE"), index=True
-    )
-    row_id: Mapped[int] = mapped_column(ForeignKey("issue_report_rows.id", ondelete="CASCADE"))
-    column_id: Mapped[int] = mapped_column(ForeignKey("issue_report_columns.id", ondelete="CASCADE"))
-    #: TipTap/ProseMirror document — text, marks, hard breaks and images live
-    #: here together, which is what makes format-preserving translation possible
-    doc: Mapped[dict] = mapped_column(JSON, default=dict)
-    align: Mapped[str] = mapped_column(String(10), default="left")
-    valign: Mapped[str] = mapped_column(String(10), default="top")
-
-    report: Mapped[IssueReport] = relationship(back_populates="cells")
-
-
-# --------------------------------------------------------------------------- #
-# Support
-# --------------------------------------------------------------------------- #
 class Translation(Base):
     """Translation cache keyed by the *content hash* of the source document."""
 
@@ -450,101 +359,83 @@ class Asset(TimestampMixin, Base):
     original_filename: Mapped[str | None] = mapped_column(String(255))
 
 
-class AssetUsage(Base):
-    """Where an asset is referenced, so orphans can be found and cleaned up."""
+class DepartmentSettings(TimestampMixin, Base):
+    """What a department's page is called.
 
-    __tablename__ = "asset_usages"
-    __table_args__ = (UniqueConstraint("asset_id", "cell_id", name="uq_asset_usage"),)
+    Every department has the same settings, and its own values: the titles the
+    presenter wants above each chart and each table.  The numbers underneath
+    them are the workbook's and are never editable (ADR-0038).
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), index=True)
-    cell_id: Mapped[int | None] = mapped_column(
-        ForeignKey("issue_report_cells.id", ondelete="CASCADE"), index=True
-    )
-    version_id: Mapped[int | None] = mapped_column(
-        ForeignKey("presentation_versions.id", ondelete="CASCADE")
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Issue reports (Sprint 5)
-# --------------------------------------------------------------------------- #
-class Issue(TimestampMixin, Base):
-    """A situation that deserves executive attention.
-
-    The *editorial* half — title, description, severity, status — is what the
-    user writes.  The *analytical* half — period, values, delta, trend, origin
-    cell — is copied from the model at creation time and never edited by hand,
-    so an issue always states where its numbers came from (ADR-0029).
+    Keyed by the table's own name (``TTL``), so a new import of the same
+    workbook keeps the titles the user chose.
     """
 
-    __tablename__ = "issues"
-    __table_args__ = (Index("ix_issues_scope", "version_id", "period_label"),)
+    __tablename__ = "department_settings"
+    __table_args__ = (UniqueConstraint("department", name="uq_department_settings"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    department: Mapped[Department] = mapped_column(
+        SAEnum(Department, native_enum=False, length=16), nullable=False, index=True
+    )
+    #: {"TTL": "Total incoming", …} — empty means "use the workbook's name"
+    chart_titles: Mapped[dict] = mapped_column(JSON, default=dict)
+    table_titles: Mapped[dict] = mapped_column(JSON, default=dict)
+    #: what each chart plots, when the presenter chose it themselves:
+    #: {"TTL": {"bars": ["TTL|Imported|SKD|PPM|", …], "line": "TTL|Total||PPM|"}}
+    #: An entry that is absent — or whose rows the workbook no longer has —
+    #: falls back to the automatic composition (ADR-0041).
+    chart_series: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+# --------------------------------------------------------------------------- #
+# The report — written by hand, for one snapshot
+# --------------------------------------------------------------------------- #
+class VersionReport(TimestampMixin, Base):
+    """The report a person writes about one snapshot.
+
+    The system does not compose it, summarise it or derive it from the numbers:
+    the author writes it, and the only thing that ever happens to it
+    automatically is translation into another language (ADR-0036).
+
+    One report per version.  ``content`` is the table the author built —
+    columns, rows and the ordered blocks inside each cell (ADR-0038); ``text``
+    is its plain rendering, kept so translation and search do not have to walk
+    the tree twice.  ``translation_key`` is the content hash, so an unchanged
+    report costs no provider call (ADR-0007).
+    """
+
+    __tablename__ = "version_reports"
+    __table_args__ = (UniqueConstraint("version_id", name="uq_version_report"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     version_id: Mapped[int] = mapped_column(
         ForeignKey("presentation_versions.id", ondelete="CASCADE"), index=True
     )
-    department: Mapped[Department] = mapped_column(
-        SAEnum(Department, native_enum=False, length=16), nullable=False, index=True
-    )
-
-    # --- what it is about (the analytical selector) ------------------------ #
-    period_label: Mapped[str | None] = mapped_column(String(40))
-    period: Mapped[dict | None] = mapped_column(JSON)
-    reference_period: Mapped[dict | None] = mapped_column(JSON)
-    table_name: Mapped[str | None] = mapped_column(String(160))
-    category: Mapped[str | None] = mapped_column(String(160))
-    subcategory: Mapped[str | None] = mapped_column(String(160))
-    metric: Mapped[str | None] = mapped_column(String(160))
-    series_type: Mapped[str | None] = mapped_column(String(60))
-
-    # --- editorial --------------------------------------------------------- #
-    title: Mapped[str] = mapped_column(String(300), nullable=False)
-    #: rich document (TipTap), so images and translation work as designed
-    description_doc: Mapped[dict] = mapped_column(JSON, default=dict)
-    description_text: Mapped[str | None] = mapped_column(Text)
-    #: content hash of the description — the key of the translation cache
+    language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
+    content: Mapped[dict] = mapped_column(JSON, default=dict)  # rich document
+    text: Mapped[str] = mapped_column(Text, default="")
     translation_key: Mapped[str | None] = mapped_column(String(64), index=True)
-    language: Mapped[str] = mapped_column(String(10), default="en")
-    severity: Mapped[IssueSeverity] = mapped_column(
-        SAEnum(IssueSeverity, native_enum=False, length=16), default=IssueSeverity.MEDIUM
-    )
-    status: Mapped[IssueStatus] = mapped_column(
-        SAEnum(IssueStatus, native_enum=False, length=16), default=IssueStatus.OPEN, index=True
-    )
 
-    # --- the numbers, copied from the model -------------------------------- #
-    value: Mapped[float | None] = mapped_column(Float)
-    previous_value: Mapped[float | None] = mapped_column(Float)
-    delta: Mapped[float | None] = mapped_column(Float)
-    delta_percent: Mapped[float | None] = mapped_column(Float)
-    target: Mapped[float | None] = mapped_column(Float)
-    direction: Mapped[str | None] = mapped_column(String(10))
-    analytical_severity: Mapped[str | None] = mapped_column(String(10))
-    trend: Mapped[dict | None] = mapped_column(JSON)
-
-    # --- provenance --------------------------------------------------------- #
-    source_cell: Mapped[str | None] = mapped_column(String(12))
-    source_range: Mapped[str | None] = mapped_column(String(40))
-    #: the insight this issue was raised from, when it was
-    origin: Mapped[dict | None] = mapped_column(JSON)
-
-    media: Mapped[list["IssueMedia"]] = relationship(
-        back_populates="issue", cascade="all, delete-orphan", order_by="IssueMedia.order_index"
+    version: Mapped[PresentationVersion] = relationship(back_populates="report")
+    media: Mapped[list["ReportMedia"]] = relationship(
+        back_populates="report",
+        cascade="all, delete-orphan",
+        order_by="ReportMedia.order_index",
     )
 
 
-class IssueMedia(Base):
-    """An image attached to an issue: evidence, never analytical data."""
+class ReportMedia(Base):
+    """An image the author attached to the report.  Bytes on disk, metadata here."""
 
-    __tablename__ = "issue_media"
+    __tablename__ = "report_media"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    issue_id: Mapped[int] = mapped_column(ForeignKey("issues.id", ondelete="CASCADE"), index=True)
+    report_id: Mapped[int] = mapped_column(
+        ForeignKey("version_reports.id", ondelete="CASCADE"), index=True
+    )
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
     caption: Mapped[str | None] = mapped_column(String(300))
     order_index: Mapped[int] = mapped_column(Integer, default=0)
 
-    issue: Mapped[Issue] = relationship(back_populates="media")
-    asset: Mapped[Asset] = relationship()
+    report: Mapped[VersionReport] = relationship(back_populates="media")
+    asset: Mapped["Asset"] = relationship()

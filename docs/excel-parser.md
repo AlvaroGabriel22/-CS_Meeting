@@ -218,3 +218,14 @@ infer, it says so:
 * Charts inside the workbook, images and pivot caches are ignored.
 * Files produced by a tool that does not cache formula results give empty value
   cells (flagged, not silently zeroed).
+
+## Regions that are not tables
+
+The guillotine split (`regions.py`) cuts a sheet into blocks; the interpreter
+turns the ones that hold data into tables. A block with no numbers and no
+periods — a README sheet, a note, a legend — is **skipped**, with the warning
+`skipped_non_tabular_region:A3:A6` recording what was left out.
+
+Sprint 6 briefly kept such blocks as content; Sprint 7 removed that again. The
+report of a presentation is written by hand in the application, not read out of
+a spreadsheet (ADR-0036).

@@ -94,7 +94,17 @@ def validate_image_upload(filename: str, content_type: str | None, payload: byte
     if not payload:
         raise UploadRejected("Empty file")
     if len(payload) > limit:
-        raise UploadRejected("Image too large", {"sizeBytes": len(payload), "limitBytes": limit})
+        # the file is stored exactly as uploaded — nothing is re-encoded, so a
+        # large photo keeps its quality.  The ceiling is on the *file*, and it
+        # is stated in the message so the person uploading knows the rule.
+        raise UploadRejected(
+            f"Image is larger than the {settings.max_image_mb} MB limit",
+            {
+                "sizeBytes": len(payload),
+                "limitBytes": limit,
+                "limitMb": settings.max_image_mb,
+            },
+        )
 
     detected = next(
         (mime for magic, mime in IMAGE_MAGIC.items() if payload.startswith(magic)), None

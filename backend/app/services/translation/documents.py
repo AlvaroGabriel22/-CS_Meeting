@@ -25,10 +25,19 @@ _NUMBER_RE = re.compile(r"^[\d\s.,:%/+-]+$")
 #: patterns that must survive translation untouched even though they sit inside
 #: a sentence.  Week labels are a *pattern* on purpose: W32 becomes W33 next
 #: week, so they can never be a static list.
+#: what may sit next to a token without being part of it.  Deliberately ASCII:
+#: Korean glues a particle straight onto the number — ``12/08에`` — and Python's
+#: ``\w`` counts 에 as a word character, so a ``(?!\w)`` boundary would fail to
+#: see the date at all and the guard would reject a perfectly good translation.
+_EDGE = r"[0-9A-Za-z_]"
+
 PROTECTED_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?<!\w)(?:W|WK|S)\s?\d{1,2}(?!\w)", re.IGNORECASE),  # W32, WK32, S28
-    re.compile(r"(?<!\w)\d+(?:[.,]\d+)*\s?%?(?!\w)"),                 # 3,000 / 13.4%
-    re.compile(r"(?<!\w)[A-Z]{2,}[-_]?\d{2,}(?!\w)"),                  # product codes
+    # a date is one datum, not two numbers with a slash between them: masking it
+    # whole lets it move as a unit, which is what every language does with it
+    re.compile(rf"(?<!{_EDGE})\d{{1,4}}[/-]\d{{1,2}}(?:[/-]\d{{2,4}})?(?!{_EDGE})"),
+    re.compile(rf"(?<!{_EDGE})(?:W|WK|S)\s?\d{{1,2}}(?!{_EDGE})", re.IGNORECASE),
+    re.compile(rf"(?<!{_EDGE})\d+(?:[.,]\d+)*\s?%?(?!{_EDGE})"),        # 3,000 / 13.4%
+    re.compile(rf"(?<!{_EDGE})[A-Z]{{2,}}[-_]?\d{{2,}}(?!{_EDGE})"),      # product codes
 )
 
 
@@ -86,6 +95,56 @@ def content_hash(doc: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def text_hash(text: str) -> str:
+    """Cache key of a single string.
+
+    Equal by construction to :func:`content_hash` of a document whose only text
+    node is ``text``, so a title and a paragraph share one cache and one rule.
+    """
+    payload = json.dumps([text], ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def data_tokens(text: str) -> list[str]:
+    """Every piece of a string that is data rather than language.
+
+    Numbers, week labels and product codes — the things a translation may
+    never touch.  Used as a *check* after the fact: what went out and what came
+    back must carry the same data tokens (ADR-0035).
+    """
+    tokens: list[str] = []
+    for pattern in PROTECTED_PATTERNS:
+        tokens.extend(match.group(0) for match in pattern.finditer(text))
+    return sorted(token.strip() for token in tokens)
+
+
+def preserves_data(original: str, translated: str, terms: tuple[str, ...] = ()) -> bool:
+    """True when a translation changed only the language.
+
+    Every data token of the source must survive verbatim: nothing dropped,
+    nothing rounded, no decimal separator localised.  A translation that fails
+    that is discarded by the caller and the original text is kept.
+
+    A token the translation *adds* is allowed, because some languages spell a
+    word with a digit in it — Korean writes August as ``8월`` and "third party"
+    as ``제3자``.  Refusing those would be refusing the translation, and the
+    figures they sit next to are already masked and restored verbatim, so an
+    extra digit cannot be a changed number (ADR-0035).
+    """
+    from collections import Counter
+
+    source_tokens = Counter(data_tokens(original))
+    if source_tokens - Counter(data_tokens(translated)):
+        return False
+    for term in terms:
+        if not term:
+            continue
+        pattern = re.compile(rf"(?<!{_EDGE})" + re.escape(term) + rf"(?!{_EDGE})")
+        if len(pattern.findall(original)) != len(pattern.findall(translated)):
+            return False
+    return True
+
+
 def mask_protected(segment: str, terms: tuple[str, ...]) -> tuple[str, dict[str, str]]:
     """Replace protected content with placeholders before sending it out.
 
@@ -107,7 +166,7 @@ def mask_protected(segment: str, terms: tuple[str, ...]) -> tuple[str, dict[str,
         return f"\u00a7{name}\u00a7"
 
     for term in sorted((term for term in terms if term), key=len, reverse=True):
-        pattern = re.compile(r"(?<!\w)" + re.escape(term) + r"(?!\w)")
+        pattern = re.compile(rf"(?<!{_EDGE})" + re.escape(term) + rf"(?!{_EDGE})")
         if pattern.search(masked):
             token = placeholder()
             masked = pattern.sub(token, masked)

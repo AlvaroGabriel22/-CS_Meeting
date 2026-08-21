@@ -120,111 +120,6 @@ def test_months_keep_their_quarter_through_the_chart_layer(iqc_evolution) -> Non
 
 
 # --------------------------------------------------------------------------- #
-# H-L. Deltas
-# --------------------------------------------------------------------------- #
-def test_h_i_j_period_comparison_with_absolute_and_percent_delta(iqc_real: Path) -> None:
-    comparison = A.compare_periods(
-        _tables(iqc_real),
-        period_a="3Q",
-        period_b="Aug",
-        filters={"table": "TTL", "metric": "Rej. Lot"},
-        department="IQC",
-    )
-    row = next(row for row in comparison["rows"] if row["label"] == "Total · Rej. Lot")
-    delta = row["delta"]
-
-    assert (delta["valueA"], delta["valueB"]) == (7.0, 2.0)
-    assert delta["delta"] == -5.0
-    assert delta["deltaPercent"] == pytest.approx(-71.4285, rel=1e-3)
-    assert delta["direction"] == "down"
-    assert delta["severity"] == "positive"  # fewer rejected lots is better
-    assert delta["status"] == "ok"
-    # every side keeps its origin
-    assert row["sourceA"] and row["sourceB"]
-
-
-def test_k_a_zero_baseline_never_produces_a_percentage() -> None:
-    delta = A.compute_delta(
-        {"value": 0.0, "display": "0"},
-        {"value": 5.0, "display": "5"},
-        metric="Rej. Lot",
-        department="IQC",
-    )
-    assert delta["delta"] == 5.0
-    assert delta["deltaPercent"] is None
-    assert delta["status"] == "undefined_percent"
-    assert delta["direction"] == "up" and delta["severity"] == "negative"
-
-
-def test_k_zero_to_zero_is_flat_not_a_percentage() -> None:
-    delta = A.compute_delta({"value": 0.0}, {"value": 0.0}, metric="PPM", department="IQC")
-    assert delta["delta"] == 0.0 and delta["deltaPercent"] is None
-    assert delta["direction"] == "flat" and delta["status"] == "undefined_percent"
-
-
-def test_l_a_missing_period_is_missing_not_zero(iqc_real: Path) -> None:
-    comparison = A.compare_periods(
-        _tables(iqc_real),
-        period_a="Aug",
-        period_b="Sep",  # this file has no September
-        filters={"table": "TTL", "metric": "Rej. Lot"},
-        department="IQC",
-    )
-    assert "period_not_in_snapshot:Sep" in comparison["warnings"]
-    row = comparison["rows"][0]
-    assert row["delta"]["valueB"] is None
-    assert row["delta"]["delta"] is None and row["delta"]["deltaPercent"] is None
-    assert row["delta"]["status"] == "missing_b"
-
-
-def test_severity_is_unknown_when_the_metric_polarity_is_not_declared() -> None:
-    delta = A.compute_delta({"value": 10.0}, {"value": 12.0}, metric="Whatever", department="IQC")
-    assert delta["direction"] == "up" and delta["severity"] == "unknown"
-    neutral = A.compute_delta({"value": 10.0}, {"value": 12.0}, metric="Insp. Lot", department="IQC")
-    assert neutral["severity"] == "neutral"  # a volume is neither good nor bad
-
-
-# --------------------------------------------------------------------------- #
-# M-N. Versions
-# --------------------------------------------------------------------------- #
-def test_m_comparing_two_snapshots_of_the_same_period(iqc_evolution) -> None:
-    older = _tables(iqc_evolution["a"])
-    newer = _tables(iqc_evolution["b"])
-    comparison = A.compare_versions(
-        older, newer, period="Aug", filters={"table": "TTL", "metric": "Rej. Lot"}, department="IQC"
-    )
-
-    assert comparison["kind"] == "versions"
-    row = next(row for row in comparison["rows"] if row["label"] == "Total · Rej. Lot")
-    delta = row["delta"]
-    assert delta["valueA"] is not None and delta["valueB"] is not None
-    assert delta["delta"] == delta["valueB"] - delta["valueA"]
-    assert comparison["periodA"]["label"] == "Aug"
-
-
-def test_m_a_row_present_in_only_one_version_is_reported_not_zeroed(iqc_evolution) -> None:
-    complete = _tables(iqc_evolution["a"])
-    partial = [table for table in complete if (table.title or "") != "TNP"]
-    comparison = A.compare_versions(
-        complete, partial, period="Aug", filters={"metric": "Rej. Lot"}, department="IQC"
-    )
-    assert any(warning.startswith("rows_only_in_a:") for warning in comparison["warnings"])
-    missing = [row for row in comparison["rows"] if row["delta"]["status"] == "missing_b"]
-    assert missing and all(row["delta"]["delta"] is None for row in missing)
-
-
-def test_n_comparison_never_mutates_a_snapshot(iqc_evolution) -> None:
-    older = _tables(iqc_evolution["a"])
-    newer = _tables(iqc_evolution["d"])
-    before = [
-        [(cell.row, cell.col, cell.number) for cell in table.cells] for table in older
-    ]
-    A.compare_versions(older, newer, period="Aug", department="IQC")
-    after = [[(cell.row, cell.col, cell.number) for cell in table.cells] for table in older]
-    assert before == after
-
-
-# --------------------------------------------------------------------------- #
 # O-S. The IQC tables themselves
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("table_name", ["TTL", "SEC", "TNP"])
@@ -274,49 +169,21 @@ def test_selector_options_are_discovered_from_the_snapshot(iqc_real: Path) -> No
 
 
 # --------------------------------------------------------------------------- #
-# Executive insights (infrastructure)
+# The layer selects and arranges; it does not calculate (ADR-0036)
 # --------------------------------------------------------------------------- #
-def test_insights_carry_everything_needed_to_write_and_to_prove_a_sentence(
-    iqc_real: Path,
-) -> None:
-    tables = _tables(iqc_real)
-    comparison = A.compare_periods(
-        tables,
-        period_a="3Q",
-        period_b="Aug",
-        filters={"table": "TTL", "metric": "Rej. Lot"},
-        department="IQC",
-    )
-    insights = A.build_insights(
-        comparison,
-        department="IQC",
-        version_id=7,
-        version_number=2,
-        source_ranges={"TTL": "B2:I17"},
-        limit=3,
-    )
-    assert insights
-    first = insights[0]
-    assert first["department"] == "IQC" and first["table"] == "TTL"
-    assert first["metric"] == "Rej. Lot"
-    assert first["period"]["label"] == "Aug"
-    assert first["referencePeriod"]["label"] == "3Q"
-    assert first["value"] is not None and first["previousValue"] is not None
-    assert first["direction"] in ("up", "down", "flat")
-    assert first["severity"] in ("positive", "negative", "neutral", "unknown")
-    assert first["source"] and first["sourceRange"] == "B2:I17"
-    assert first["versionId"] == 7 and first["versionNumber"] == 2
-    # ranked by the size of the movement
-    percents = [abs(item["deltaPercent"]) for item in insights]
-    assert percents == sorted(percents, reverse=True)
+def test_the_analytics_layer_does_no_arithmetic() -> None:
+    """The user calculates in Excel; this layer reads what the file holds."""
+    for name in ("compute_delta", "compare_periods", "compare_versions",
+                 "build_insights", "build_trends"):
+        assert not hasattr(A, name), f"{name} would be the system calculating"
 
 
-def test_insights_skip_comparisons_that_have_no_number(iqc_real: Path) -> None:
-    comparison = A.compare_periods(
-        _tables(iqc_real),
-        period_a="Aug",
-        period_b="Nov",  # absent from this file
-        filters={"table": "TTL"},
-        department="IQC",
-    )
-    assert A.build_insights(comparison, department="IQC", version_id=1) == []
+def test_a_series_carries_only_what_the_file_says(iqc_real: Path) -> None:
+    series = A.table_series(_tables(iqc_real)[0], filters={"metric": "PPM"})
+    assert series
+    for item in series:
+        assert set(item) == {
+            "key", "label", "selector", "sheet", "sourceRange", "tableId", "points",
+        }
+        for point in item["points"]:
+            assert set(point) == {"period", "value", "display", "valueType", "source"}

@@ -353,6 +353,8 @@ reported as `missing_a`/`missing_b`, never as zero, and the response warns
 
 ## ADR-0022 — A delta is arithmetic; whether it is *good* needs configuration
 
+> **Superseded by [ADR-0033](#adr-0033--the-system-reports-it-does-not-analyse).** The arithmetic below still holds exactly as written; the `severity` half of it does not — no delta carries a quality any more, and `DepartmentSchema.polarity` was removed.
+
 **Decision (Sprint 3).**
 
 * `delta = B − A` — always, when both values exist;
@@ -386,6 +388,8 @@ granularities relate. One owner, one rule.
 ---
 
 ## ADR-0024 — ExecutiveInsight is built now, used later
+
+> **Superseded by [ADR-0033](#adr-0033--the-system-reports-it-does-not-analyse).** Insights are no longer built at all. The provenance the ADR argued for stayed: every figure still carries its cell, source range and version.
 
 **Decision (Sprint 3).** Every comparison also returns `insights`: a ranked list
 of statements carrying title, department, table, category, subcategory, metric,
@@ -422,6 +426,8 @@ chart and the comparison table still take their two periods from the user.
 
 ## ADR-0026 — Generated sentences travel as template + params
 
+> **Superseded by [ADR-0033](#adr-0033--the-system-reports-it-does-not-analyse).** There are no generated sentences to carry. The lesson about i18next lacking ICU `select` is kept here for whoever adds a template next.
+
 **Decision (Sprint 4).** An insight carries `template` (an i18n key such as
 `insights.metric_moved_up`), `params`, and an English `text` fallback. The UI
 renders the sentence in the user's language; the exporters will use `text`.
@@ -438,6 +444,8 @@ that justifies it.
 ---
 
 ## ADR-0027 — Insight ranking is a documented formula
+
+> **Superseded by [ADR-0033](#adr-0033--the-system-reports-it-does-not-analyse).** Nothing is ranked. The key figures appear in the order the workbook lists them.
 
 **Decision (Sprint 4).**
 
@@ -524,6 +532,8 @@ cell — only the *representation* is adapted to the medium, never the model.
 
 ## ADR-0031 — Trend classification, and its place in the ranking
 
+> **Superseded by [ADR-0033](#adr-0033--the-system-reports-it-does-not-analyse).** `app/services/trends.py` was deleted; the system states nothing about a sequence of periods. The chart draws the sequence and the reader reads it.
+
 **Decision (Sprint 5).** `app/services/trends.py` classifies a series as
 `rising` / `falling` / `stable` / `volatile` / `insufficient_data`:
 
@@ -555,3 +565,361 @@ user. Chrome's auto-translation contradicted that choice *and* crashed React
 during the browser validation: rewriting text nodes under React made the export
 spinner throw `NotFoundError: insertBefore`. The two mechanisms cannot both own
 the text.
+
+---
+
+## ADR-0033 — The system reports, it does not analyse
+
+**Decision (revision of Sprint 5, on the user's directive).** CS Meeting is an
+instrument, not an analyst. It uploads a workbook, interprets its structure,
+renders its tables faithfully, charts the numbers it actually holds and exports
+that. It does **not** produce insights, causes, verdicts, rankings or trend
+classifications — not by heuristic and not by AI.
+
+Concretely, and in both directions:
+
+| Removed | Kept |
+| --- | --- |
+| `build_insights`, `insight_score`, the whole ranking formula | `delta`, `deltaPercent`, `direction`, `status` — arithmetic |
+| `services/trends.py` and every trend classification | the chart, which *shows* the sequence |
+| `severity` on a delta, a KPI and an issue's analytical half | `severity` on an issue's **editorial** half, set by a person |
+| `DepartmentSchema.polarity` and `metric_polarity()` | `target` and `targetStatus` (`above`/`below`/`at`) — a comparison of two numbers the file holds |
+| `targetBreached` — which side of a target is the bad one | the source cell and range that prove every number |
+| insight-derived issue titles ("Local · PPM increase") | a neutral default title: the selection and the period |
+| the insights section, its i18n block, and green/red delta colouring | the figures, the tables, the charts, the exports |
+
+**AI is confined to translation.** A provider may translate a title, a
+description or a report between en / pt-BR / ko. It may not change a number, a
+label read from the workbook, or the meaning of factual content — the protected
+terms and patterns of ADR-0008 already enforce that at the string level.
+
+**Why.** The people in the meeting are the analysts. A system that announces
+"PPM rose 188% — this is negative, ranked first" borrows their authority for a
+conclusion it derived from a formula: it can be wrong about what matters, and
+being wrong confidently in an executive review is worse than being silent.
+Numbers, their difference and their provenance are verifiable; "this is bad" is
+not. So the system states the first and never the second, and the words on the
+page belong to whoever signed the issue report.
+
+**Consequences.**
+
+* `analytics.compute_delta` returns `direction` and no `severity`;
+* `services/executive.py` builds **key figures** (`figures`, not `kpis`), in the
+  order the workbook lists them;
+* `GET /analytics/executive` returns `figures`; `/analytics/comparison` and
+  `/analytics/versus/{id}` no longer return `insights`;
+* `issues.analytical_severity` and `issues.trend` were dropped (migration
+  `7696dbad9dc7`); an issue keeps `direction`, which is the sign of a
+  subtraction;
+* the PDF and the deck carry key figures, issues, chart and tables — no
+  statement block, and no colour that means "good" or "bad";
+* the parser, the period engine, the hierarchy inference, the render model and
+  the export plumbing were **not** touched: interpreting a file faithfully was
+  never the thing being questioned.
+
+**Tests.** The suite asserts the absence as explicitly as it asserts the
+presence: `test_executive.py` checks the exact key set of a figure and that
+`build_insights` / `insight_score` do not exist, `test_analytics.py` that a
+delta carries no verdict, `test_issues.py` that an issue payload carries none,
+and `test_export.py` that neither exported file contains the words a generated
+analysis would need.
+
+---
+
+## ADR-0034 — Prose in a workbook is content, not noise
+
+> **Superseded by ADR-0036.** The report of a presentation is written by hand in the application. Prose found in a workbook is skipped again, and `report_blocks` was dropped.
+
+**Decision (Sprint 6).** A region that holds no numbers and no periods is not
+discarded any more: it becomes a **report block**, stored with the import and
+shown on the page, in the exports and in the import preview.
+
+* the rule is structural — the pipeline already knew which regions were not
+  tabular; those now go to `app/excel/narrative.py` instead of to a warning;
+* one paragraph per row of the block, joined left to right, **in the file's
+  order**, each keeping the cell it came from;
+* a line is a *heading* only when the file makes it bold, and a block's title
+  is that line itself — never a phrase this system composes;
+* a block whose lines contain no letter at all (an orphan number, a stray
+  symbol) is still skipped: inventing prose would be as wrong as dropping it;
+* `find_regions` grew a `min_cells` parameter so a title alone on its row can
+  be read. A one-cell region may only ever become a report block, never a
+  one-cell "table".
+
+**Why.** The real IQC workbook carries a README sheet that explains how the
+sheet is laid out. The product's whole promise is *faithful rendering of the
+file*; silently dropping four sentences the author wrote is a fidelity bug, and
+the user asked for the report to be shown, preserved, and neither summarised
+nor rewritten.
+
+**Consequences.** `report_blocks` (migration `5af291c4e799`) sits beside
+`table_definitions` under the same immutable import. `GET /versions/{id}/view`
+and the upload response both carry `reports`. The PDF gains a *Report* block
+and the deck one slide per block, with the sheet and range printed under the
+text. Nothing summarises: a report is shown as written.
+
+---
+
+## ADR-0035 — Translation is an overlay; the original is the record
+
+**Decision (Sprint 6).** AI translation is wired end to end, and it may do
+exactly one thing: say the same words in another language.
+
+* **Provider.** `AnthropicProvider` implements the Sprint 0 seam. It is
+  registered only when `CSM_TRANSLATION_PROVIDER=anthropic` *and*
+  `CSM_ANTHROPIC_API_KEY` are set; otherwise the null provider stays in place
+  and text comes back unchanged. The key never leaves the backend (ADR-0009).
+* **What is collected.** `translation/content.py` picks strings by the *role of
+  their cell*: table titles, header and label cells, report paragraphs, issue
+  titles and descriptions. Value cells, period columns, formulas and cell
+  addresses are never collected, so they cannot be sent, cannot be changed and
+  cannot come back wrong.
+* **What is masked.** Protected terms and data patterns (numbers, week labels,
+  product codes) are replaced by placeholders before the request and restored
+  after it (ADR-0008).
+* **What is verified.** `preserves_data()` compares the data tokens and
+  protected terms of the answer against the source. A mismatch — a rounded
+  figure, a localised decimal separator, a dropped code — **discards the
+  answer** and keeps the original, and the response says so
+  (`rejected: true`).
+* **How it reaches the page.** `POST /versions/{id}/translation` returns pairs
+  of original and translated string. The snapshot is not touched; the client
+  holds an overlay keyed by the original, so switching the language costs no
+  request in either direction and the original is always one hover — or one
+  *show original* — away.
+* **Cache.** One row per string, keyed by content hash × language × provider,
+  reusing the Sprint 0 `translations` table. The same label costs one
+  round-trip for the whole product's lifetime.
+* **Exports.** `translate` and `language` on the export request apply the same
+  overlay to the same strings, so a translated page exports a translated file —
+  with byte-identical numbers, which a test asserts.
+
+**Why.** The directive is explicit: AI translates titles, texts and reports and
+never alters numbers, values, formulas, periods, technical names or original
+cells, and the original must always remain available. An overlay satisfies all
+of it structurally rather than by good behaviour: the data path and the
+language path never meet, and the only bridge between them is a lookup by
+string that values are never part of.
+
+**Consequences.** A page can be read in en / pt-BR / ko without the snapshot
+ever differing. A provider that misbehaves cannot corrupt a figure — the worst
+it can do is have its answer thrown away. And with no key configured the
+feature degrades to "no translation", never to "wrong translation".
+
+---
+
+## ADR-0036 — The page is three containers, and the system only draws
+
+**Decision (Sprint 7).** A department page shows exactly three things, in this
+order:
+
+1. **the charts** — one per table, side by side, in the workbook's order:
+   vertical bars per category with a line over them for the leading group;
+2. **the tables** — the same three, side by side, in the same order;
+3. **the report** — written by hand, by the person presenting.
+
+Everything else was removed: the key-figure strip, the issue reports, the
+period and version comparisons, the period/table/metric selectors, the parser
+warnings on the page, the provenance footers, and the prose read out of the
+workbook (ADR-0034).
+
+**What the system does.** It identifies the file's structure correctly, and it
+draws. The user works the tables in Excel *before* uploading — the totals, the
+PPM, the percentages are already calculated there — so the system recomputes
+nothing. `app/services/charts.py` selects the metric (the department's headline
+metric when the file has it, else the first metric present), the categories
+(whatever the hierarchy found), the periods (the file's own columns) and the
+line (the department's leading group). A file with a different shape draws a
+different chart with no code change.
+
+**What the system does not do.** It does not calculate, rank, compare, judge,
+summarise or write. `compute_delta`, `compare_periods`, `compare_versions`,
+`build_figures` and the issue machinery are gone, along with their endpoints.
+
+**AI translates the report, and nothing else.** Every other word on the page —
+headings, buttons, warnings — is interface text shipped in three languages, and
+every label inside a table came from the workbook. Neither needs a provider,
+and neither is ever sent to one. The report is the only text the system cannot
+know in advance, so it is the only text a provider ever sees, under the rules
+of ADR-0035 (masking, data-preservation check, original always available).
+
+**Consequences.**
+
+* new: `services/charts.py`, `services/reports.py`, `api/routes/reports.py`,
+  `schemas/report.py`, tables `version_reports` and `report_media`
+  (migration `902bbcb42eb9`);
+* removed: `services/executive.py`, `services/issues.py`, `excel/narrative.py`,
+  the comparison half of `services/analytics.py`, the `issues`, `issue_media`,
+  `issue_report*`, `asset_usages` and `report_blocks` tables, and every
+  endpoint that served them;
+* the API is now nine reading endpoints and four writing ones;
+* the exports follow the page: charts, tables, report — a PDF of three pages
+  and a deck of five slides for the real IQC file.
+
+**Why.** The product is an instrument for a weekly meeting. The numbers are
+already right when they arrive; what the meeting needs is to see them, plainly,
+and to read what the person responsible wrote about them. Everything the
+system added around that was noise — and noise on an executive page is worse
+than nothing, because it competes with the two things that matter.
+
+---
+
+## ADR-0037 — How the bars stand is declared per department
+
+**Decision (Sprint 8).** `DepartmentSchema.chart_bars` says whether a
+department's chart stacks its bars or groups them:
+
+* **IQC — `stacked`.** The bars are the *leaf components* of each table: a
+  category with sub-groups contributes its sub-groups (`SKD`, `CKD`), one
+  without them contributes itself (`Local`). Stacked, they read as the whole,
+  with the `Total` line drawn over them.
+* **everything else — `grouped`,** the neutral default. OQC and FIELD are
+  marked provisional and their real workbooks have not arrived, so nothing
+  about their chart is assumed.
+
+The *rule* is generic — "the parts, at the deepest level each one reaches" —
+and only the *choice* is per department, because whether the parts add up is a
+fact about the data, not about the code.
+
+**Why.** Stacking numbers that do not sum to the whole draws a lie. For IQC the
+user confirmed SKD + CKD + Local are the components of the total; for the other
+two departments nobody can confirm it yet, and inventing it was explicitly
+ruled out.
+
+---
+
+## ADR-0038 — Reading and configuring are two different screens
+
+**Decision (Sprint 8).** The department page is for a meeting: it shows the
+charts, the tables and the report, and carries no upload button, no edit
+button and no export button. Everything that *changes* a department lives on
+its own configuration screen, and every department has the same three tabs
+with its own content:
+
+* **Raw data** — upload the workbook, see what the parser understood, save the
+  version;
+* **Titles** — rename what appears above each chart and each table. Only the
+  names; the numbers under them always come from the workbook;
+* **Report** — the editor.
+
+**The report is a table the author builds.** Columns are created, named,
+reordered and deleted. Rows are added without limit. Each **cell** holds an
+ordered list of **blocks** — text, image or shape — so a cell can be "text,
+photo, text" or "photo, photo, text", in exactly the order the author placed
+them, each with its own alignment; text blocks also carry bold, italic and a
+size. The structure is stored as it was built and rendered the same way on the
+page, in the PDF and as a native table in the deck.
+
+**Images are stored as uploaded and drawn within bounds.** Nothing is
+re-encoded, so a large photo keeps its quality; the ceiling is on the *file*
+(15 MB, stated in the rejection message). On screen the author picks a width
+from four presets (25 / 50 / 75 / 100% of the cell), and the system caps the
+drawn height at 260 px. The report table uses a fixed layout with a 260 px
+floor per column, so a big image can never push its neighbours away — the table
+scrolls instead.
+
+**Downloads live in their own screen.** `/reports` lists every saved report
+across departments, newest first, with a filter and four downloads per line:
+the report alone, the charts alone, the tables alone, and the full deck. A
+meeting reads; it does not download.
+
+**Translation follows the reader.** Choosing another language on the
+presentation screen translates the report — its title, its column names and
+its text — and nothing else, because everything else on the page is interface
+text shipped in three languages or a label that came from the workbook
+(ADR-0035, ADR-0036).
+
+**Why.** Two audiences, two screens. The person presenting needs a page with
+nothing on it but the content; the person preparing needs full control and
+nowhere near a live meeting. Mixing them put edit affordances in front of an
+executive room and buried the preparation work inside the presentation.
+
+**Consequences.** New: `department_settings`, the block-shaped
+`version_reports.content`, `/api/departments/{code}/settings`, `/api/reports`,
+and `includeCharts` / `includeTables` / `includeReport` on the export request.
+Removed: the import screen, the export buttons on the department page, and the
+plain-text report of Sprint 7.
+
+---
+
+## ADR-0039 — Authored text is what AI translates, and it is exactly two things
+
+**Decision (Sprint 9).** The system draws a line between text it *ships* and
+text somebody *typed*, and only the second ever reaches a translation provider.
+
+| Shipped — never sent | Typed — sent, for every department |
+| --- | --- |
+| every label of the interface (three bundles: en / pt-BR / ko) | the **report**: its title, its column names, its text blocks and its image captions |
+| every label the workbook carries (`Imported`, `Rej. Lot`, `SKD`, `Aug`, `3Q`) | the **titles** given to the charts and tables in the configuration |
+| every value, period, formula and cell address | |
+
+One endpoint serves both: `POST /api/versions/{id}/translation` returns the
+report in the target language *beside* the original, plus the two title maps
+keyed exactly as they are stored — `{"TTL": "Entrada total"}` becomes
+`{"TTL": "…"}`, the key untouched, because `TTL` is how the workbook names the
+table and not something a person wrote.
+
+Switching the language on the presentation screen calls it once and overlays
+the answer. Nothing stored changes, so switching back costs no request.
+
+**The same for IQC, OQC and FIELD.** The department is not a branch in the
+code: it only selects which technical terms are masked out of the request
+(`protected_terms`). A department with no report and no titles gets an answer
+with nothing in it rather than an error.
+
+**Why.** The product must be readable in three languages, and two kinds of
+content make that impossible to solve with bundles alone — nobody knows what
+the presenter will write in the report, or what they will call a chart. Those
+are exactly the strings AI is useful for, and they are also the only ones where
+being wrong is recoverable: the original is always beside the translation, the
+numbers are never part of the request, and an answer that altered a data token
+is discarded (ADR-0035).
+
+**Consequences.** `/versions/{id}/report/translation` became
+`/versions/{id}/translation`; the response gained `chartTitles`, `tableTitles`
+and `stringCount`. The real provider needs `CSM_TRANSLATION_PROVIDER=anthropic`
+and `CSM_ANTHROPIC_API_KEY` in the backend environment; without them the null
+provider returns the source text, so the page degrades to "not translated" and
+never to "translated wrongly".
+
+---
+
+## ADR-0040 — Three engines behind one seam, and a local one among them
+
+**Decision (Sprint 9).** `CSM_TRANSLATION_PROVIDER` selects the engine, and all
+three implement the same `TranslationProvider` contract:
+
+| Engine | Where the text goes | Configuration |
+| --- | --- | --- |
+| `null` (default) | nowhere — the source comes back | none |
+| `anthropic` | the Anthropic API | `CSM_ANTHROPIC_API_KEY`, `CSM_TRANSLATION_MODEL` |
+| `ollama` | a model on this machine | `CSM_OLLAMA_URL`, `CSM_OLLAMA_MODEL` |
+
+The **question is the same for all of them**: `SYSTEM_PROMPT` and
+`parse_segments()` moved out of the Anthropic provider into the seam, so no
+engine can quietly ask something different — or read an answer more
+generously — than another. `configure_from_settings()` registers whichever is
+asked for and falls back to `null` when it cannot be built.
+
+**A local engine is not trusted more, only closer.** The masking, the
+data-preservation check and the cache all apply exactly as before (ADR-0035).
+Two things are specific to it: `temperature: 0`, because a translation is not a
+place for sampling and the cache assumes determinism; and an engine that is not
+running returns the source text with `meta.failed`, rather than raising — a
+stopped daemon must not lose what somebody wrote.
+
+**The answer parser learned two habits of small models**: wrapping the array in
+an object (`{"translations": [...]}`) and prefixing it with a sentence. Both are
+now read; anything else still falls back to the source.
+
+**A date is one datum.** `12/08` used to be masked as two numbers with a slash
+between them, so a model writing the date the way its own language does would
+reorder the placeholders and have its whole answer discarded. Dates are now
+masked whole (`12/08`, `2026-08-12`), which is both more correct and far less
+brittle.
+
+**Why.** The report is a quality document: it names suppliers, lot numbers and
+findings. Sending it to a remote vendor is a decision an organisation should be
+able to decline without losing the feature. With Ollama the text never leaves
+the machine, and the rest of the system cannot tell the difference — which is
+the point of having had a seam since Sprint 0.

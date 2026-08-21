@@ -1,5 +1,15 @@
 # Sprint 5 — report
 
+> **Revised after delivery.** The directive that followed this sprint — *the
+> system must not generate insights, causes or AI analysis; AI is for
+> translation only* — removed part of what is described below. §3 (trend
+> engine) and §4 (insights 2.0) **no longer exist in the code**; §7–§9 and §11
+> describe a page and exports that no longer show an insights block. What
+> survived, and why, is written up in
+> [ADR-0033](decisions.md#adr-0033--the-system-reports-it-does-not-analyse) and
+> summarised in §19 at the end of this report. The rest of the sprint — issue
+> reports, provenance, PDF/PPT export — stands as written.
+
 **Scope: from an analytical page to a tool that goes to the meeting.** Issue
 reports, trend analysis, insights 2.0 and PDF/PPT export. OQC and FIELD were
 not touched — their workbooks still do not exist.
@@ -43,7 +53,7 @@ An issue has two halves that never mix (ADR-0029):
   `issue_media` as **evidence**, never as analytical data; the upload is
   validated by magic number, not by the name the browser sent.
 
-## 3. Trend engine
+## 3. Trend engine — ~~delivered~~ **removed** (ADR-0033)
 
 `app/services/trends.py` — deterministic, documented, no AI (ADR-0031):
 
@@ -63,7 +73,7 @@ An issue has two halves that never mix (ADR-0029):
   `improving`; a `neutral` metric is never judged; an undeclared one stays
   `unknown`.
 
-## 4. Executive insights 2.0
+## 4. Executive insights 2.0 — ~~delivered~~ **removed** (ADR-0033)
 
 * new insight kind **`trend`** — "Imported · PPM has fallen across 3
   consecutive months (Aug → Oct)" — produced only when three or more
@@ -282,3 +292,47 @@ trends), `main.py`, `pages/Department.tsx`, `types/api.ts`, `lib/api.ts`,
 4. When the real **OQC** workbook arrives: fixture, schema from the data, and a
    polarity declaration — the analytical, executive, issue and export layers
    should need no change.
+
+---
+
+## 19. Revision — what was removed, and what replaced it
+
+The sprint shipped a system that both *reported* and *concluded*. The directive
+that followed kept the first half and deleted the second.
+
+**Removed.** `services/trends.py` and `tests/test_trends.py`; `build_insights`,
+`insight_score`, the ranking formula and every insight kind; `severity` on a
+delta, on a KPI and on an issue's analytical half; `DepartmentSchema.polarity`
+and `metric_polarity()`; `targetBreached`; the `insights` payload of both
+comparison endpoints; the `ExecutiveInsights` component, the insights section of
+the department page, the green/red delta colouring, and the `insights.*` /
+`trends.*` i18n blocks in all three languages. Columns
+`issues.analytical_severity` and `issues.trend` were dropped by migration
+`7696dbad9dc7`.
+
+**Replaced by.** `services/executive.py` now builds **key figures**: a value,
+the reading in the resolved reference period, the difference, the percentage
+when the baseline allows one, the direction of the movement, the target when the
+workbook carries one, and the cell that proves all of it — in the order the
+workbook lists them, with nothing said about them. The endpoint returns
+`figures` instead of `kpis`. An issue raised from a figure gets a neutral
+default title (the selection and the period) and `severity: "info"` for the user
+to set. The PDF and the deck carry *Key figures*, the issues a person wrote, the
+chart and the tables.
+
+**Not touched.** The parser, the region split, the interpreter, the normalizer,
+the period engine, the hierarchy inference, the render model, versioning,
+snapshots and the export plumbing. Faithful interpretation was never what the
+directive questioned.
+
+**Tests — 293 passing** (was 314). The 21 net removals are the trend suite and
+the insight assertions; the new tests assert the *absence* of generated
+analysis: the exact key set of a figure and of a comparison row, that
+`build_insights` / `insight_score` / `trends` do not exist, that an issue
+payload carries no derived verdict, and that neither exported file contains the
+vocabulary a generated analysis would need.
+
+**Limitations of §15 that this revision resolves or changes.** Item 6 (trend
+needs three readings) no longer applies — there is no trend engine. Item 2 (AI
+translation not wired) is now the *only* place AI is allowed to appear, and
+remains unwired pending approval.

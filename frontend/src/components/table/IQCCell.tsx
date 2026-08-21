@@ -42,12 +42,11 @@ export function IQCCell({ cell }: { cell: RenderCell }) {
       rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
       colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
       style={borderStyle(cell)}
-      title={cell.source ?? undefined}
       data-kind={cell.kind}
       data-source={cell.source ?? undefined}
       data-sticky={cell.col === 0 ? 'true' : undefined}
       className={cn(
-        'px-3 py-1.5 align-middle',
+        'px-2 py-1 align-middle',
         ALIGN[cell.align] ?? 'text-left',
         cell.wrap ? 'whitespace-normal' : 'whitespace-nowrap',
         isNumber && 'tabular-nums',
@@ -62,12 +61,7 @@ export function IQCCell({ cell }: { cell: RenderCell }) {
       {!cell.text && cell.inferredText && (
         // the workbook does not say this; the parser read it. Shown apart so it
         // can never be mistaken for the file's own content.
-        <span
-          className="italic text-ink-300"
-          title="Read from the table structure — not written in the workbook"
-        >
-          {cell.inferredText}
-        </span>
+        <span className="italic text-ink-300">{cell.inferredText}</span>
       )}
     </Tag>
   )

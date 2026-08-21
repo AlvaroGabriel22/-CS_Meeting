@@ -5,10 +5,22 @@ Central system for the weekly quality executive presentations — **IQC**
 (Field Quality).
 
 Import the departments' raw Excel files, read their structure automatically,
-render tables and charts, write Issue Reports, translate with AI, version the
-work and export PPT/PDF. Local, no login, SQLite.
+render tables and charts, write Issue Reports, translate them with AI, version
+the work and export PPT/PDF. Local, no login, SQLite.
 
-## Status — Sprint 5 (issue reports, trends, PDF/PPT export)
+**The system draws; it does not calculate.** The user works the tables in Excel
+and uploads the result. The system identifies the structure, renders the three
+charts and the three tables faithfully, and hosts the report the person writes
+by hand. No insights, no causes, no verdicts, no deltas of its own. AI is used
+for one thing: translating that report between en / pt-BR / ko, without
+touching a number (ADR-0033, ADR-0036).
+
+The department page is three containers — **charts → tables → report** — and
+nothing else: no buttons, no captions. Everything that changes a department
+lives on its **configuration** screen (raw data, titles, report editor), and
+every saved report is listed for download under **Reports**.
+
+## Status — Sprint 8 (presentation screen, configuration screen, report builder)
 
 | Area | State |
 | --- | --- |
@@ -30,18 +42,21 @@ work and export PPT/PDF. Local, no login, SQLite.
 | **Charts over the normalized model** (period axis from the file) | ✅ done |
 | **Period comparison** with honest deltas (no percentage over a zero baseline) | ✅ done |
 | **Version comparison** — same row, same period, two snapshots | ✅ done |
-| **Version selector driving the whole page** (tables, charts, KPIs, insights) | ✅ done |
-| **Executive KPI strip** with reference period, target when the file has one | ✅ done |
-| **Executive insights** — ranked sentences, no invented causes, full provenance | ✅ done |
-| **Trend analysis** over 3+ comparable periods, polarity-aware | ✅ done |
+| **Three charts side by side** — IQC stacks SKD · CKD · Local under a Total line | ✅ done |
+| **Three tables side by side**, in the workbook's order (TTL · SEC · TNP) | ✅ done |
+| **Report builder** — columns, rows, and text / image / shape blocks per cell | ✅ done |
+| **Configuration screen per department** — upload, titles, report | ✅ done |
+| **Reports library** with per-part downloads (report · charts · tables · deck) | ✅ done |
+| **No generated analysis, no calculation of our own** | ✅ by design (ADR-0033, ADR-0036) |
+| **AI translation of what a person typed** — the report and the titles | ✅ local (Ollama) or remote (Claude) |
 | **Issue reports** — editable text, status, images, provable numbers | ✅ done |
 | **PDF export** — structured, searchable, tables and images preserved | ✅ done |
 | **PPT export** — editable text, native chart, native tables | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 314 tests |
+| Tests + generated raw-data fixtures | ✅ 313 tests |
 | Rich Issue Report editor, AI translation provider | ⏳ next sprints |
 | OQC / FIELD structures | ⏳ waiting for the real files |
 
-Read [`docs/sprint-5-report.md`](docs/sprint-5-report.md) for the latest
+Read [`docs/sprint-8-report.md`](docs/sprint-8-report.md) for the latest
 results, limitations and next steps.
 
 ## Quick start
@@ -63,13 +78,52 @@ npm run dev                                     # http://localhost:5173
 VITE_API_PROXY=http://127.0.0.1:8100 npm run dev
 ```
 
+### Choosing a translation engine
+
+Three engines, one seam (ADR-0040). Without configuration the null engine
+returns the source text — no translation, never a wrong one.
+
+**A model on this machine** (nothing leaves it), with
+[Ollama](https://ollama.com) running:
+
+```bash
+# backend/.env
+CSM_TRANSLATION_PROVIDER=ollama
+CSM_OLLAMA_URL=http://127.0.0.1:11434
+CSM_OLLAMA_MODEL=gemma4:e2b
+```
+
+**Claude, over the network** — the key stays in the backend and never reaches
+the browser:
+
+```bash
+CSM_TRANSLATION_PROVIDER=anthropic
+CSM_ANTHROPIC_API_KEY=sk-ant-…
+CSM_TRANSLATION_MODEL=claude-sonnet-5
+```
+
+`GET /api/translation/status` reports which provider is live.
+
+Only **authored text** is ever sent: the report and the titles a person typed
+for the charts and tables (ADR-0039). The interface ships in three languages
+and every label inside a table belongs to the workbook — neither leaves the
+backend. Numbers, periods and technical terms are masked even inside a
+sentence, and an answer that changed one is discarded in favour of the original
+(ADR-0035). It works the same for IQC, OQC and FIELD.
+
+Without a key the null provider returns the source text: the page degrades to
+"not translated", never to "translated wrongly".
+
 ## Import and read IQC in the browser
 
 * `http://localhost:5173/department/IQC/import` — choose the workbook, read what
   the parser understood (tables, periods, hierarchy, warnings), save the version.
-* `http://localhost:5173/department/IQC` — the executive page: pick a version
-  and a period, and the KPI strip, the insights, the issue reports, the charts,
-  the tables and the comparisons all follow that one selection. **Export PDF**
+* `http://localhost:5173/department/IQC` — the department page: pick a version
+  and read it top to bottom — the three charts, the three tables, then the
+  report. Changing the interface language translates the report.
+* `http://localhost:5173/department/IQC/config` — upload the workbook, rename
+  the charts and tables, and build the report.
+* `http://localhost:5173/reports` — every saved report, with its downloads. **Export PDF**
   and **Export PPT** take exactly that view to the meeting.
 
 ## See the pipeline work

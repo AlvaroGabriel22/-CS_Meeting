@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 from pathlib import Path
 
 import pytest
@@ -53,213 +54,280 @@ def _deck_text(deck: Presentation) -> str:
 
 # --------------------------------------------------------------------------- #
 # 20, 22-24, 27. PDF
+
+
+TITLE = "Relatorio da semana"
+LINES = [
+    "Rejection rate rose this month, driven by one supplier.",
+    "Containment in place; 3.000 units re-inspected.",
+    "Audit scheduled for next week.",
+]
+
+
+def _content(image_asset: int | None = None) -> dict:
+    blocks = [
+        {"id": f"b{index}", "type": "text", "text": line, "align": "left"}
+        for index, line in enumerate(LINES)
+    ]
+    if image_asset is not None:
+        blocks.insert(1, {"id": "img", "type": "image", "assetId": image_asset,
+                          "caption": "evidencia", "align": "center", "width": 80})
+    return {
+        "title": TITLE,
+        "columns": [{"id": "c1", "name": "Observacao"}, {"id": "c2", "name": "Acao"}],
+        "rows": [
+            {"id": "r1", "cells": {"c1": blocks, "c2": [
+                {"id": "s1", "type": "shape", "shape": "rectangle", "color": "#1E3A5F"},
+            ]}}
+        ],
+    }
+
+
+def _with_report(client, path: Path, content: dict | None = None) -> int:
+    version_id = _upload(client, path)["versionId"]
+    client.put(
+        f"/api/versions/{version_id}/report", json={"content": content or _content()}
+    )
+    return version_id
+
+
 # --------------------------------------------------------------------------- #
-def test_20_the_pdf_is_generated_and_opens(client, iqc_real: Path, tmp_path: Path) -> None:
+# PDF — charts, tables, report
+# --------------------------------------------------------------------------- #
+def test_the_pdf_is_generated_and_opens(client, iqc_real: Path, tmp_path: Path) -> None:
     version = _upload(client, iqc_real)["versionId"]
-    response = client.post(f"/api/versions/{version}/export/pdf", json={"table": "TTL"})
+    response = client.post(f"/api/versions/{version}/export/pdf", json={})
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
-    assert len(response.content) > 0
-
     pages, text = _pdf_text(response.content, tmp_path)
-    assert pages >= 3
+    assert pages >= 2
     assert "IQC" in text
-    assert "Key indicators" in text and "Executive insights" in text
 
 
-def test_22_23_the_pdf_states_the_version_and_the_period(
-    client, iqc_real: Path, tmp_path: Path
-) -> None:
+def test_the_pdf_states_the_version_it_came_from(client, iqc_real: Path, tmp_path: Path) -> None:
     created = _upload(client, iqc_real)
-    response = client.post(
-        f"/api/versions/{created['versionId']}/export/pdf",
-        json={"table": "TTL", "period": "Aug", "metric": "PPM"},
+    _pages, text = _pdf_text(
+        client.post(f"/api/versions/{created['versionId']}/export/pdf", json={}).content,
+        tmp_path,
     )
-    _pages, text = _pdf_text(response.content, tmp_path)
-
     assert f"Version {created['versionNumber']}" in text
-    assert "Period Aug" in text
-    assert "Metric PPM" in text
-    assert "IQC" in text
+    assert "RawdataIQC.xlsx" in text or "Metric PPM" in text
 
 
-def test_23_a_different_period_produces_a_different_export(
-    client, iqc_evolution, tmp_path: Path
-) -> None:
-    version = _upload(client, iqc_evolution["c"])["versionId"]
-
-    august = client.post(
-        f"/api/versions/{version}/export/pdf", json={"table": "TTL", "period": "Aug"}
-    )
-    october = client.post(
-        f"/api/versions/{version}/export/pdf", json={"table": "TTL", "period": "Oct"}
-    )
-
-    _pages, august_text = _pdf_text(august.content, tmp_path / "a")
-    _pages, october_text = _pdf_text(october.content, tmp_path / "b")
-
-    assert "Period Aug" in august_text and "Period Oct" not in august_text
-    assert "Period Oct" in october_text
-
-
-def test_24_27_the_pdf_carries_the_chart_and_the_tables(
+def test_the_pdf_carries_the_three_tables_in_the_file_order(
     client, iqc_real: Path, tmp_path: Path
 ) -> None:
-    version = _upload(client, iqc_real)["versionId"]
-    response = client.post(f"/api/versions/{version}/export/pdf", json={"table": "TTL"})
-    _pages, text = _pdf_text(response.content, tmp_path)
-
-    assert "Trend" in text  # the chart block
-    for probe in ("TTL", "SEC", "TNP", "Imported", "Local", "SKD", "CKD", "Rej. Lot", "Insp. Lot"):
-        assert probe in text, f"{probe} must reach the PDF"
-    # the tables keep their structure: no artificial PPM row label
+    _pages, text = _pdf_text(
+        client.post(
+            f"/api/versions/{_upload(client, iqc_real)['versionId']}/export/pdf", json={}
+        ).content,
+        tmp_path,
+    )
+    assert text.index("TTL") < text.index("SEC") < text.index("TNP")
+    assert "Rej. Lot" in text and "Insp. Lot" in text
+    # the headline row has no metric label in the file, and none is invented
     assert "\nPPM\n" not in text
 
 
-def test_25_26_issues_and_their_images_reach_the_pdf(
+def test_the_pdf_carries_the_report_the_author_built(
+    client, iqc_real: Path, tmp_path: Path
+) -> None:
+    version = _with_report(client, iqc_real)
+    _pages, text = _pdf_text(
+        client.post(f"/api/versions/{version}/export/pdf", json={}).content, tmp_path
+    )
+    assert TITLE in text
+    assert "Observacao" in text and "Acao" in text  # the columns the author named
+    for line in LINES:
+        assert line in text  # verbatim, block for block
+
+
+def test_a_version_without_a_report_exports_without_one(
     client, iqc_real: Path, tmp_path: Path
 ) -> None:
     version = _upload(client, iqc_real)["versionId"]
-    issue = client.post(
-        f"/api/versions/{version}/issues",
-        json={
-            "table": "TTL",
-            "category": "Local",
-            "metric": "PPM",
-            "period": "Aug",
-            "title": "Local PPM spike",
-            "description": "Containment in place at the supplier.",
-        },
-    ).json()
-    client.post(
-        f"/api/versions/{version}/issues/{issue['id']}/media",
-        files={"file": ("evidence.png", PNG, "image/png")},
-        data={"caption": "Defect close-up"},
+    _pages, text = _pdf_text(
+        client.post(f"/api/versions/{version}/export/pdf", json={}).content, tmp_path
     )
-
-    response = client.post(f"/api/versions/{version}/export/pdf", json={"table": "TTL"})
-    pages, text = _pdf_text(response.content, tmp_path)
-
-    assert "Issue reports" in text
-    assert "Local PPM spike" in text
-    assert "Containment in place at the supplier." in text
-    assert "Defect close-up" in text  # the caption travelled with the image
-
-    reader = PdfReader(str(tmp_path / "export.pdf"))
-    images = sum(len(page.images) for page in reader.pages)
-    assert images >= 1, "the attached evidence must be embedded"
-    assert pages >= 3
+    assert TITLE not in text  # nothing is written on the author's behalf
 
 
-# --------------------------------------------------------------------------- #
-# 21-27. PowerPoint
-# --------------------------------------------------------------------------- #
-def test_21_the_deck_is_generated_and_opens(client, iqc_real: Path, tmp_path: Path) -> None:
+def test_each_part_can_be_downloaded_on_its_own(client, iqc_real: Path, tmp_path: Path) -> None:
+    """The library offers report, charts and tables separately (ADR-0038)."""
+    version = _with_report(client, iqc_real)
+
+    _pages, only_report = _pdf_text(
+        client.post(
+            f"/api/versions/{version}/export/pdf",
+            json={"includeCharts": False, "includeTables": False},
+        ).content,
+        tmp_path / "report",
+    )
+    assert TITLE in only_report
+    assert "Rej. Lot" not in only_report
+
+    _pages, only_tables = _pdf_text(
+        client.post(
+            f"/api/versions/{version}/export/pdf",
+            json={"includeCharts": False, "includeReport": False},
+        ).content,
+        tmp_path / "tables",
+    )
+    assert "Rej. Lot" in only_tables
+    assert TITLE not in only_tables
+
+
+def test_an_image_placed_in_a_cell_reaches_the_pdf(
+    client, iqc_real: Path, tmp_path: Path
+) -> None:
     version = _upload(client, iqc_real)["versionId"]
-    response = client.post(f"/api/versions/{version}/export/ppt", json={"table": "TTL"})
+    uploaded = client.post(
+        f"/api/versions/{version}/report/media",
+        files={"file": ("evidence.png", PNG, "image/png")},
+    ).json()
+    client.put(
+        f"/api/versions/{version}/report", json={"content": _content(uploaded["assetId"])}
+    )
+    response = client.post(f"/api/versions/{version}/export/pdf", json={})
+    path = tmp_path / "with-image.pdf"
+    path.write_bytes(response.content)
+    reader = PdfReader(str(path))
+    images = [image for page in reader.pages for image in page.images]
+    assert images, "the evidence image is embedded"
+
+
+# --------------------------------------------------------------------------- #
+# PowerPoint — charts, tables, report
+# --------------------------------------------------------------------------- #
+def test_the_deck_is_generated_and_opens(client, iqc_real: Path, tmp_path: Path) -> None:
+    version = _upload(client, iqc_real)["versionId"]
+    response = client.post(f"/api/versions/{version}/export/ppt", json={})
 
     assert response.status_code == 200
     assert "presentationml" in response.headers["content-type"]
     deck = _deck(response.content, tmp_path)
-    assert len(deck.slides) >= 5
+    assert len(deck.slides) >= 4  # one chart slide + three table slides
 
 
-def test_22_23_the_deck_states_department_version_and_period(
+def test_the_deck_charts_are_native_charts(client, iqc_real: Path, tmp_path: Path) -> None:
+    version = _upload(client, iqc_real)["versionId"]
+    deck = _deck(client.post(f"/api/versions/{version}/export/ppt", json={}).content, tmp_path)
+
+    charts = [shape.chart for slide in deck.slides for shape in slide.shapes if shape.has_chart]
+    assert len(charts) == 3, "one chart per table, side by side on one slide"
+    categories = list(charts[0].plots[0].categories)
+    assert categories == ["'25", "'26", "1Q", "2Q", "3Q", "Aug"]
+    names = [series.name for series in charts[0].plots[0].series]
+    assert names == ["SKD", "CKD", "Local", "Total"]  # parts, then the whole
+
+
+def test_the_deck_tables_keep_their_structure(client, iqc_real: Path, tmp_path: Path) -> None:
+    version = _upload(client, iqc_real)["versionId"]
+    deck = _deck(client.post(f"/api/versions/{version}/export/ppt", json={}).content, tmp_path)
+
+    tables = [shape.table for slide in deck.slides for shape in slide.shapes if shape.has_table]
+    assert len(tables) == 3
+    cells = [cell.text for table in tables for row in table.rows for cell in row.cells]
+    assert "Imported" in cells and "Rej. Lot" in cells
+    assert "PPM" not in cells  # never invented into the headline row
+    merged = [
+        cell
+        for table in tables
+        for row in table.rows
+        for cell in row.cells
+        if cell.is_merge_origin
+    ]
+    assert merged, "the merges of the workbook survive"
+
+
+def test_the_deck_carries_the_report_as_a_native_table(
     client, iqc_real: Path, tmp_path: Path
 ) -> None:
-    created = _upload(client, iqc_real)
-    response = client.post(
-        f"/api/versions/{created['versionId']}/export/ppt",
-        json={"table": "TTL", "period": "Aug"},
-    )
-    text = _deck_text(_deck(response.content, tmp_path))
-
-    assert "IQC — Executive overview" in text
-    assert "Period Aug" in text
-    assert f"Version {created['versionNumber']}" in text
-
-
-def test_24_the_deck_chart_is_a_real_chart(client, iqc_real: Path, tmp_path: Path) -> None:
-    version = _upload(client, iqc_real)["versionId"]
-    response = client.post(f"/api/versions/{version}/export/ppt", json={"table": "TTL"})
-    deck = _deck(response.content, tmp_path)
-
-    charts = [shape for slide in deck.slides for shape in slide.shapes if shape.has_chart]
-    assert charts, "the chart must be a native, editable object"
-    plot = charts[0].chart.plots[0]
-    assert list(plot.categories) == ["'25", "'26", "1Q", "2Q", "3Q", "Aug"]
-    assert len(plot.series) >= 1
-
-
-def test_27_the_deck_tables_keep_their_structure(client, iqc_real: Path, tmp_path: Path) -> None:
-    version = _upload(client, iqc_real)["versionId"]
-    response = client.post(f"/api/versions/{version}/export/ppt", json={"table": "TTL"})
-    deck = _deck(response.content, tmp_path)
-
-    tables = [shape for slide in deck.slides for shape in slide.shapes if shape.has_table]
-    assert len(tables) == 3  # TTL, SEC, TNP
-
-    grid = tables[0].table
-    texts = [cell.text for row in grid.rows for cell in row.cells]
-    assert "TTL" in texts and "Imported" in texts and "Rej. Lot" in texts
-    assert "PPM" not in texts  # the headline row keeps its empty label cell
-    # a merged cell is one cell in the deck too
-    merged = [cell for row in grid.rows for cell in row.cells if cell.is_merge_origin]
-    assert merged
-
-
-def test_25_26_issues_and_images_reach_the_deck(client, iqc_real: Path, tmp_path: Path) -> None:
-    version = _upload(client, iqc_real)["versionId"]
-    issue = client.post(
-        f"/api/versions/{version}/issues",
-        json={
-            "table": "TTL",
-            "category": "Local",
-            "metric": "PPM",
-            "period": "Aug",
-            "title": "Local PPM spike",
-            "description": "Supplier audit scheduled.",
-        },
-    ).json()
-    client.post(
-        f"/api/versions/{version}/issues/{issue['id']}/media",
-        files={"file": ("evidence.png", PNG, "image/png")},
-    )
-
-    response = client.post(f"/api/versions/{version}/export/ppt", json={"table": "TTL"})
-    deck = _deck(response.content, tmp_path)
+    version = _with_report(client, iqc_real)
+    deck = _deck(client.post(f"/api/versions/{version}/export/ppt", json={}).content, tmp_path)
     text = _deck_text(deck)
 
-    assert "Local PPM spike" in text and "Supplier audit scheduled." in text
-    pictures = [
-        shape for slide in deck.slides for shape in slide.shapes if shape.shape_type == 13
-    ]
-    assert pictures, "the evidence image must be embedded in the deck"
+    assert TITLE in text
+    tables = [shape.table for slide in deck.slides for shape in slide.shapes if shape.has_table]
+    assert len(tables) == 4  # three from the workbook, one for the report
+    cells = [cell.text for row in tables[-1].rows for cell in row.cells]
+    assert "Observacao" in cells and "Acao" in cells
+    # the blocks of one cell stay in one cell, in the author's order
+    written = "\n".join(cells)
+    for line in LINES:
+        assert line in written
+    assert written.index(LINES[0]) < written.index(LINES[1]) < written.index(LINES[2])
 
 
-def test_the_export_can_include_a_version_comparison(client, iqc_evolution, tmp_path: Path) -> None:
-    first = _upload(client, iqc_evolution["a"])
-    second = _upload(client, iqc_evolution["b"])
-
-    response = client.post(
-        f"/api/versions/{second['versionId']}/export/pdf",
-        json={"table": "TTL", "period": "Aug", "compareWith": first["versionId"]},
+# --------------------------------------------------------------------------- #
+# What the exports never do
+# --------------------------------------------------------------------------- #
+def test_neither_export_composes_a_sentence_about_the_data(
+    client, iqc_real: Path, tmp_path: Path
+) -> None:
+    """Charts, tables and the author's words — nothing else (ADR-0033/0036)."""
+    version = _upload(client, iqc_real)["versionId"]
+    _pages, pdf_text = _pdf_text(
+        client.post(f"/api/versions/{version}/export/pdf", json={}).content, tmp_path
     )
-    _pages, text = _pdf_text(response.content, tmp_path)
-    assert "Version comparison" in text
+    deck_text = _deck_text(
+        _deck(client.post(f"/api/versions/{version}/export/ppt", json={}).content, tmp_path)
+    )
+
+    forbidden = ("insight", "because", "caused", "due to", "root cause", "rose",
+                 "fell", "worsening", "improving", "largest", "trend", "severity")
+    for name, text in (("pdf", pdf_text), ("pptx", deck_text)):
+        lowered = text.lower()
+        for word in forbidden:
+            assert word not in lowered, f"{name} states {word!r}"
+
+
+def test_a_translated_export_keeps_every_number(client, iqc_real: Path, tmp_path: Path) -> None:
+    """The report may change language; the tables and charts may not change."""
+    from app.services.translation.provider import TranslationResult, register_provider
+
+    class Prefixing:
+        name = "export-fake"
+
+        def translate(self, request):
+            return TranslationResult(
+                segments=[f"KO {segment}" for segment in request.segments],
+                provider=self.name,
+                model="fake",
+            )
+
+    import app.services.translation.service as service_module
+
+    provider = Prefixing()
+    register_provider(provider)
+    original_get = service_module.get_provider
+    service_module.get_provider = lambda name=None: provider
+    try:
+        version = _with_report(client, iqc_real)
+        plain = client.post(f"/api/versions/{version}/export/pdf", json={}).content
+        translated = client.post(
+            f"/api/versions/{version}/export/pdf", json={"language": "ko", "translate": True}
+        ).content
+    finally:
+        service_module.get_provider = original_get
+
+    _a, plain_text = _pdf_text(plain, tmp_path / "plain")
+    _b, translated_text = _pdf_text(translated, tmp_path / "translated")
+
+    assert "KO " in translated_text, "the report followed the language"
+    numbers = re.compile(r"\d[\d,.]*")
+    assert numbers.findall(plain_text) == numbers.findall(translated_text)
 
 
 def test_exporting_twice_does_not_reuse_a_stale_file(client, iqc_evolution, tmp_path: Path) -> None:
-    version = _upload(client, iqc_evolution["c"])["versionId"]
-    first = client.post(
-        f"/api/versions/{version}/export/pdf", json={"table": "TTL", "period": "Aug"}
-    ).content
-    second = client.post(
-        f"/api/versions/{version}/export/pdf", json={"table": "TTL", "period": "Sep"}
-    ).content
-    assert first != second
+    first = _upload(client, iqc_evolution["a"])["versionId"]
+    second = _upload(client, iqc_evolution["c"])["versionId"]
 
-    _pages, first_text = _pdf_text(first, tmp_path / "one")
-    _pages, second_text = _pdf_text(second, tmp_path / "two")
-    assert "Period Aug" in first_text and "Period Sep" in second_text
+    _pages_a, text_a = _pdf_text(
+        client.post(f"/api/versions/{first}/export/pdf", json={}).content, tmp_path / "a"
+    )
+    _pages_b, text_b = _pdf_text(
+        client.post(f"/api/versions/{second}/export/pdf", json={}).content, tmp_path / "b"
+    )
+    assert text_a != text_b

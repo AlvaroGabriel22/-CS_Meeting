@@ -8,10 +8,19 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import analytics, exports, health, imports, issues, presentations
+from app.api.routes import (
+    analytics,
+    exports,
+    health,
+    imports,
+    presentations,
+    reports,
+    translation,
+)
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
+from app.services.translation.provider import configure_from_settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +28,9 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.debug)
+
+    provider = configure_from_settings()
+    logger.info("translation provider in use: %s", provider)
 
     app = FastAPI(
         title=settings.app_name,
@@ -47,8 +59,9 @@ def create_app() -> FastAPI:
     app.include_router(imports.router)
     app.include_router(presentations.router)
     app.include_router(analytics.router)
-    app.include_router(issues.router)
+    app.include_router(reports.router)
     app.include_router(exports.router)
+    app.include_router(translation.router)
     return app
 
 
