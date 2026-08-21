@@ -923,3 +923,115 @@ findings. Sending it to a remote vendor is a decision an organisation should be
 able to decline without losing the feature. With Ollama the text never leaves
 the machine, and the rest of the system cannot tell the difference — which is
 the point of having had a seam since Sprint 0.
+
+---
+
+## ADR-0041 — The presenter composes the chart; the workbook supplies it
+
+**Decision (Sprint 9).** The configuration screen lets a department choose, per
+chart, **which rows of its table are the stacked bars and which one is the
+line**. `DepartmentSettings.chart_series` stores it:
+
+```json
+{"TTL": {"bars": ["TTL|Imported||PPM|", "TTL|Local||PPM|"],
+         "line": "TTL|Total||PPM|"}}
+```
+
+The keys are the series identity of ADR-0021 — table, category, subcategory,
+metric — so a choice survives a new import of the same workbook.
+
+**What is offered is what the file has.** `/charts` returns `available`: every
+row of that table, at every level and for every metric it carries, labelled by
+its full path (`Imported · SKD · PPM`) so two `SKD` rows can be told apart. The
+chooser never shows an option the workbook cannot supply.
+
+**What is chosen is only *which*, never *what*.** The values, the periods and
+the provenance are unchanged — a composition selects rows, it does not compute
+anything. A chart that mixes metrics gets the metric appended to each label,
+because `SKD` in lots and `SKD` in PPM would otherwise read alike.
+
+**Defaults stay defaults.** With no choice stored, the automatic rule of
+ADR-0037 applies — for IQC, the leaf components stacked under the `Total` line.
+A stored choice whose rows the workbook no longer has falls back to that rule
+rather than drawing an empty chart, and *Back to the default* clears it.
+
+**Why.** The automatic composition is a good opening position, not a law. A
+presenter who wants to show `Imported` against `Local` this week, and `SKD`
+against `CKD` the next, was previously asking for a code change. The line
+between "the system decides" and "the system obeys" belongs here: it decides
+nothing about the numbers, and obeys entirely about which of them to draw.
+
+---
+
+## ADR-0042 — Pacing and batching belong to the service, not to the engine
+
+**Decision (Sprint 9).** A provider knows how to ask one question. How often the
+system may ask, how many segments go in one request, and what to do when the
+answer is "not yet" are decided once, in `TranslationService`, and applied to
+every engine.
+
+A provider declares two things about itself:
+
+| Attribute | Ollama (local) | Anthropic | OpenAI-compatible |
+| --- | --- | --- | --- |
+| `requests_per_minute` | `0` — no quota | `30` | `3` (a modest hosted plan) |
+| `max_batch` | `40` | `60` | `60` |
+
+`CSM_TRANSLATION_RPM` overrides the declaration, so a tightened — or a
+generous — quota is a setting, never a code change.
+
+**The policy.**
+
+* **Batch generously.** Under three requests a minute, the batch size is what
+  decides whether a report translates at all. A twelve-string report is one
+  request, not twelve.
+* **Wait your turn.** One `RateLimiter` per engine, shared process-wide, lets a
+  request through every `60 / rpm` seconds. A steady interval, not a burst: a
+  quota of three a minute is usually enforced as "not more often than every
+  twenty seconds", and a burst is the shape most likely to be refused.
+* **Give up rather than hang.** A caller that would wait more than 90 s returns
+  the source text. A meeting cannot wait five minutes for a heading.
+* **Retry what the service asked for.** `429`, `408` and `5xx` are retried,
+  honouring `Retry-After` when present and backing off exponentially with
+  jitter when it is not. `400` and `401` are not retried — asking again with
+  the same bad request only spends quota.
+* **Never lose the text.** An engine that is down, over quota or nonsense
+  returns the *source*. A translation that did not happen is a page in the
+  original language; an exception would be a page with nothing on it.
+
+**Why.** The system will eventually run against a hosted multimodal model with
+a quota measured in single digits. Discovering that limit through failures —
+each one costing a request — is the expensive way. Declaring it and scheduling
+around it costs nothing and works identically for the local model that has no
+quota at all: `rpm = 0` disables the pacing entirely.
+
+**Multimodality stays out.** `gpt-4o` can read an image; this seam sends text
+and only text. A report's photographs are evidence someone attached, and
+sending them anywhere is a decision with its own weight — not a quiet extension
+of "translate these strings".
+
+---
+
+## ADR-0043 — Translating a shop-floor note means tidying it
+
+**Decision (Sprint 9).** The prompt asks the engine to do two things to every
+segment: translate the meaning the author intended, and **fix what was mistyped
+along the way** — spelling, accents, capitalisation, spacing — so the result
+reads as a careful person would have written it in the target language.
+
+The boundary is stated in the prompt itself: *correct the language, never the
+facts*. Everything ADR-0035 guards stays guarded — numbers, dates, codes and
+protected terms are masked before the request and restored after it, and an
+answer whose data tokens moved is discarded.
+
+**Why.** The report is typed between a line stop and a meeting: `contençao
+aplicda em 12/08`. Translating that faithfully into a misspelling in another
+language serves nobody, and the engine is already reading the sentence. The
+same pass that carries the meaning across can carry it across correctly.
+
+**Consequences.** The original is untouched and always one language-switch
+away — the correction lives in the translation, not in what the author wrote.
+Switching back to the language the report was written in now restores the
+author's own words from memory, without a request; previously it left the last
+translation on screen under the wrong flag, which is the "third time it stops
+translating" a user reported.

@@ -520,6 +520,18 @@ export interface ChartSeries {
   points: ChartPoint[]
 }
 
+/** One row of the table a chart could plot. */
+export interface ChartOption {
+  key: string
+  /** the most specific name — `SKD`, `Local` */
+  label: string
+  /** every level, so two `SKD` rows can be told apart */
+  path: string
+  category: string | null
+  subcategory: string | null
+  metric: string | null
+}
+
 export interface Chart {
   table: string
   /** the name given in the department settings, if any */
@@ -529,9 +541,13 @@ export interface Chart {
   sourceRange: string
   /** true when the bars are the parts of the whole and stack into it */
   stacked: boolean
+  /** true when the presenter chose what to plot instead of the default */
+  configured: boolean
   periods: Period[]
   bars: ChartSeries[]
   line: ChartSeries | null
+  /** everything this table could plot, for the configuration screen */
+  available: ChartOption[]
 }
 
 export interface ChartsResponse {
@@ -652,10 +668,18 @@ export interface UploadedImage {
   sizeBytes: number
 }
 
+/** What one chart plots, when the presenter chose it. */
+export interface ChartSeriesChoice {
+  bars: string[]
+  line: string | null
+}
+
 export interface DepartmentSettings {
   department: Department
   chartTitles: Record<string, string>
   tableTitles: Record<string, string>
+  /** table name -> the composition chosen for its chart */
+  chartSeries: Record<string, ChartSeriesChoice>
 }
 
 export interface TranslationStatus {

@@ -11,6 +11,7 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type {
   Chart,
+  ChartSeriesChoice,
   Department as DepartmentCode,
   ImportRecord,
   PresentationVersion,
@@ -238,57 +239,80 @@ function TitlesPanel({
   const [view, setView] = useState<VersionView | null>(null)
   const [chartTitles, setChartTitles] = useState<Record<string, string>>({})
   const [tableTitles, setTableTitles] = useState<Record<string, string>>({})
+  const [chartSeries, setChartSeries] = useState<Record<string, ChartSeriesChoice>>({})
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    void (async () => {
-      const [chartData, versionView, settings] = await Promise.all([
-        api.getCharts(versionId),
-        api.getVersionView(versionId),
-        api.getDepartmentSettings(department),
-      ])
-      setCharts(chartData.charts)
-      setView(versionView)
-      setChartTitles(settings.chartTitles)
-      setTableTitles(settings.tableTitles)
-    })()
+  const load = useCallback(async () => {
+    const [chartData, versionView, settings] = await Promise.all([
+      api.getCharts(versionId),
+      api.getVersionView(versionId),
+      api.getDepartmentSettings(department),
+    ])
+    setCharts(chartData.charts)
+    setView(versionView)
+    // defensive: a backend that predates the composition must not blank the page
+    setChartTitles(settings.chartTitles ?? {})
+    setTableTitles(settings.tableTitles ?? {})
+    setChartSeries(settings.chartSeries ?? {})
   }, [department, versionId])
 
+  useEffect(() => {
+    void load()
+  }, [load])
+
   const save = async () => {
-    await api.saveDepartmentSettings(department, { chartTitles, tableTitles })
+    await api.saveDepartmentSettings(department, { chartTitles, tableTitles, chartSeries })
     setSaved(true)
     window.setTimeout(() => setSaved(false), 2000)
+    // the chart is redrawn from what was just stored, so the preview is the truth
+    await load()
   }
 
+  /** The composition of one chart, defaulting to what it is drawing today. */
+  const choiceOf = (chart: Chart): ChartSeriesChoice =>
+    (chartSeries ?? {})[chart.table] ?? {
+      bars: chart.bars.map((series) => series.key),
+      line: chart.line?.key ?? null,
+    }
+
+  const setChoice = (table: string, choice: ChartSeriesChoice) =>
+    setChartSeries({ ...chartSeries, [table]: choice })
+
   return (
-    <section className="surface-card space-y-5 p-5">
+    <section className="surface-card space-y-6 p-5">
       <p className="text-sm text-ink-500">{t('config.titlesHint')}</p>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-brand-900">{t('config.chartTitles')}</h3>
-          {charts.map((chart) => (
-            <TitleField
-              key={chart.table}
-              name={chart.table}
-              value={chartTitles[chart.table] ?? ''}
-              onChange={(value) => setChartTitles({ ...chartTitles, [chart.table]: value })}
-            />
-          ))}
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-brand-900">{t('config.tableTitles')}</h3>
-          {(view?.tables ?? []).map((table) => (
-            <TitleField
-              key={table.sheet + table.sourceRange}
-              name={table.title ?? table.sheet}
-              value={tableTitles[table.title ?? table.sheet] ?? ''}
-              onChange={(value) =>
-                setTableTitles({ ...tableTitles, [table.title ?? table.sheet]: value })
-              }
-            />
-          ))}
-        </div>
+      <div className="space-y-5">
+        <h3 className="text-sm font-semibold text-brand-900">{t('config.chartTitles')}</h3>
+        {charts.map((chart) => (
+          <ChartPanel
+            key={chart.table}
+            chart={chart}
+            title={chartTitles[chart.table] ?? ''}
+            choice={choiceOf(chart)}
+            onTitle={(value) => setChartTitles({ ...chartTitles, [chart.table]: value })}
+            onChoice={(choice) => setChoice(chart.table, choice)}
+            onReset={() => {
+              const next = { ...chartSeries }
+              delete next[chart.table]
+              setChartSeries(next)
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-brand-900">{t('config.tableTitles')}</h3>
+        {(view?.tables ?? []).map((table) => (
+          <TitleField
+            key={table.sheet + table.sourceRange}
+            name={table.title ?? table.sheet}
+            value={tableTitles[table.title ?? table.sheet] ?? ''}
+            onChange={(value) =>
+              setTableTitles({ ...tableTitles, [table.title ?? table.sheet]: value })
+            }
+          />
+        ))}
       </div>
 
       <button
@@ -301,6 +325,108 @@ function TitlesPanel({
       </button>
       <Toast show={saved} message={t('common.saved')} />
     </section>
+  )
+}
+
+/**
+ * One chart's name and composition.
+ *
+ * The rows on offer are the rows the workbook has — every category, sub-group
+ * and metric of that table. Choosing changes *which* of them is drawn and
+ * nothing else: the numbers are always the file's.
+ */
+function ChartPanel({
+  chart,
+  title,
+  choice,
+  onTitle,
+  onChoice,
+  onReset,
+}: {
+  chart: Chart
+  title: string
+  choice: ChartSeriesChoice
+  onTitle: (value: string) => void
+  onChoice: (choice: ChartSeriesChoice) => void
+  onReset: () => void
+}) {
+  const { t } = useTranslation()
+
+  // the stack follows the workbook's own row order, not the order of clicking:
+  // the chart should read like the table it came from
+  const order = new Map(chart.available.map((option, index) => [option.key, index]))
+  const toggleBar = (key: string) => {
+    const next = choice.bars.includes(key)
+      ? choice.bars.filter((item) => item !== key)
+      : [...choice.bars, key]
+    next.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+    onChoice({ ...choice, bars: next })
+  }
+
+  return (
+    <article className="rounded-lg border border-line p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="font-mono text-xs text-ink-500">{chart.table}</span>
+        {chart.configured && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs font-medium text-brand-600 hover:text-brand-800"
+          >
+            {t('config.resetChart')}
+          </button>
+        )}
+      </div>
+
+      <input
+        value={title}
+        onChange={(event) => onTitle(event.target.value)}
+        placeholder={t('config.keepWorkbookName', { name: chart.table })}
+        className="mt-2 w-full rounded-lg border border-line px-3 py-1.5 text-sm outline-none focus:border-brand-400"
+      />
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
+            {t('config.bars')}
+          </p>
+          <ul className="max-h-56 space-y-1 overflow-y-auto pr-1">
+            {chart.available.map((option) => (
+              <li key={option.key}>
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-brand-50">
+                  <input
+                    type="checkbox"
+                    checked={choice.bars.includes(option.key)}
+                    onChange={() => toggleBar(option.key)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="text-ink-700">{option.path}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
+            {t('config.line')}
+          </p>
+          <select
+            value={choice.line ?? ''}
+            onChange={(event) => onChoice({ ...choice, line: event.target.value || null })}
+            className="w-full rounded-lg border border-line px-3 py-1.5 text-sm outline-none focus:border-brand-400"
+          >
+            <option value="">{t('config.noLine')}</option>
+            {chart.available.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.path}
+              </option>
+            ))}
+          </select>
+          <p className="mt-3 text-xs text-ink-500">{t('config.chartHint')}</p>
+        </div>
+      </div>
+    </article>
   )
 }
 

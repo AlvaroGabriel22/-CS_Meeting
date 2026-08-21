@@ -297,7 +297,33 @@ GET /api/versions/4/charts
 ```
 
 `title` is what the department settings call it, or `null` for the workbook's
-own name. `stacked` comes from `DepartmentSchema.chart_bars` (ADR-0037).
+own name. `stacked` comes from `DepartmentSchema.chart_bars` (ADR-0037), and
+`configured` says whether the presenter chose the composition or the default
+applied.
+
+Every chart also carries `available` — each row the table could plot:
+
+```json
+"available": [
+  { "key": "TTL|Imported|SKD|PPM|", "label": "SKD", "path": "Imported · SKD · PPM",
+    "category": "Imported", "subcategory": "SKD", "metric": "PPM" }
+]
+```
+
+The composition is saved with the rest of the department settings:
+
+```json
+PUT /api/departments/IQC/settings
+{ "chartTitles": { "TTL": "Total incoming" },
+  "tableTitles": {},
+  "chartSeries": { "TTL": { "bars": ["TTL|Imported||PPM|", "TTL|Local||PPM|"],
+                            "line": "TTL|Total||PPM|" } } }
+```
+
+Choosing selects *which* rows are drawn and never what they say. A stored row
+the workbook no longer has is ignored, and a composition that selects nothing
+falls back to the automatic rule, so a chart is never left empty by a stale
+setting (ADR-0041).
 
 ### The report
 

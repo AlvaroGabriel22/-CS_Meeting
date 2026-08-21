@@ -34,6 +34,10 @@ class AnthropicProvider:
     """Translates through the Anthropic Messages API."""
 
     name = "anthropic"
+    #: a starting plan is measured in requests per minute, so the service paces
+    #: itself rather than discovering the limit through 429s (ADR-0042)
+    requests_per_minute = 30
+    max_batch = 60
 
     def __init__(self, api_key: str, model: str, *, url: str = API_URL) -> None:
         self._api_key = api_key

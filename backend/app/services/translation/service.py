@@ -1,13 +1,19 @@
-"""Translation service — cache first, provider second, structure always.
+"""Translation service — cache first, engine second, structure always.
 
-Flow for one Issue Report cell::
+Flow for one report::
 
-    document -> linguistic segments -> cache lookup (content hash)
-             -> provider (only on a miss, protected terms masked)
-             -> cache write -> document with translated text
+    strings -> cache lookup (content hash)
+            -> batches sized to what the engine takes
+            -> one request per batch, paced to the engine's quota, retried
+               when the service says to
+            -> data-preservation check -> cache write
 
-The UI switching language therefore costs zero API calls while the text has not
-changed (ADR-0007).
+The UI switching language therefore costs zero requests while the text has not
+changed (ADR-0007), and a quota as tight as three requests a minute is a
+scheduling problem rather than a failure (ADR-0042).
+
+The policy lives here on purpose: a provider knows how to ask one question, not
+how often the system may ask it.
 """
 
 from __future__ import annotations
@@ -24,9 +30,21 @@ from app.db.models import Translation
 from app.domain.departments import protected_terms, schema_for
 
 from . import documents
-from .provider import TranslationProvider, TranslationRequest, get_provider
+from .limits import RateLimiter, call_with_retry, chunked
+from .provider import TranslationProvider, TranslationRequest, TranslationResult, get_provider
 
 logger = logging.getLogger(__name__)
+
+#: one limiter per engine, shared by every request in this process — two
+#: browser tabs translating at once must still respect a single quota
+_LIMITERS: dict[tuple[str, float], RateLimiter] = {}
+
+
+def _limiter_for(name: str, rpm: float) -> RateLimiter:
+    key = (name, float(rpm))
+    if key not in _LIMITERS:
+        _LIMITERS[key] = RateLimiter(rpm)
+    return _LIMITERS[key]
 
 
 @dataclass
@@ -76,7 +94,50 @@ class TranslationService:
     """Translates user content.  Interface strings are i18n, never this."""
 
     def __init__(self, provider: TranslationProvider | None = None) -> None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
         self._provider = provider or get_provider()
+        # the engine declares what it can take; the settings may tighten it
+        self._rpm = (
+            settings.translation_rpm
+            if settings.translation_rpm is not None
+            else getattr(self._provider, "requests_per_minute", 0)
+        )
+        self._batch = min(
+            settings.translation_max_batch,
+            getattr(self._provider, "max_batch", settings.translation_max_batch),
+        )
+        self._attempts = settings.translation_retries
+        self._limiter = _limiter_for(self._provider.name, self._rpm)
+
+    # -- one request ---------------------------------------------------------- #
+    def _ask(self, request: TranslationRequest) -> TranslationResult:
+        """One batch: wait for the engine's turn, ask, retry what is worth it.
+
+        Anything that still fails returns the source text.  A translation that
+        did not happen is a page in the original language; an exception here
+        would be a page with nothing on it.
+        """
+        if not self._limiter.acquire():
+            return TranslationResult(
+                segments=list(request.segments),
+                provider=self._provider.name,
+                meta={"skipped": "rate_limit"},
+            )
+        try:
+            return call_with_retry(
+                lambda: self._provider.translate(request),
+                attempts=self._attempts,
+                describe=f"translation via {self._provider.name}",
+            )
+        except Exception:  # noqa: BLE001 - the page must survive a dead engine
+            logger.exception("translation failed after %d attempt(s)", self._attempts)
+            return TranslationResult(
+                segments=list(request.segments),
+                provider=self._provider.name,
+                meta={"failed": True},
+            )
 
     # -- cache ------------------------------------------------------------- #
     def lookup(self, session: Session, source_hash: str, target_language: str) -> Translation | None:
@@ -149,18 +210,26 @@ class TranslationService:
                 masked.append(stripped)
                 mappings.append(mapping)
 
-            result = self._provider.translate(
-                TranslationRequest(
-                    segments=masked,
-                    source_language=source_language,
-                    target_language=target_language,
-                    protected_terms=terms,
+            # fewer, larger requests: under a three-a-minute quota the batch
+            # size is what decides whether a report translates at all
+            answers: list[str] = []
+            batches = chunked(list(range(len(pending))), self._batch)
+            for index, batch in enumerate(batches, start=1):
+                if len(batches) > 1:
+                    logger.info("translation batch %d/%d (%d segment(s))", index, len(batches), len(batch))
+                result = self._ask(
+                    TranslationRequest(
+                        segments=[masked[position] for position in batch],
+                        source_language=source_language,
+                        target_language=target_language,
+                        protected_terms=terms,
+                    )
                 )
-            )
-            outcome.model = result.model
-            outcome.provider = result.provider
+                outcome.model = result.model or outcome.model
+                outcome.provider = result.provider
+                answers.extend(result.segments)
 
-            for text, mapping, answer in zip(pending, mappings, result.segments):
+            for text, mapping, answer in zip(pending, mappings, answers):
                 translated = documents.unmask_protected(answer, mapping)
                 if not documents.preserves_data(text, translated, terms):
                     logger.warning(

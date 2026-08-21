@@ -87,7 +87,8 @@
       "line": "Linha",
       "arrow": "Seta",
       "divider": "Divisória"
-    }
+    },
+    "translating": "Traduzindo…"
   },
   "executive": {
     "version": "Versão"
@@ -105,10 +106,15 @@
     "saveVersion": "Salvar versão",
     "saved": "Salvo",
     "uploadFirst": "Faça o upload de uma planilha primeiro.",
-    "titlesHint": "Renomeie o que aparece acima de cada gráfico e tabela. Os números abaixo deles vêm sempre da planilha.",
+    "titlesHint": "Nomeie cada gráfico e tabela e escolha o que cada gráfico mostra. Os números vêm sempre da planilha.",
     "chartTitles": "Gráficos",
     "tableTitles": "Tabelas",
-    "keepWorkbookName": "Manter “{{name}}”"
+    "keepWorkbookName": "Manter “{{name}}”",
+    "bars": "Barras empilhadas",
+    "line": "Linha",
+    "noLine": "Sem linha",
+    "resetChart": "Voltar ao padrão",
+    "chartHint": "As linhas vêm da planilha; escolher muda quais delas são desenhadas, nunca o que elas dizem."
   },
   "reports": {
     "title": "Relatórios",

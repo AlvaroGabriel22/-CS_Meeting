@@ -259,3 +259,96 @@ the local engine asks the shared question with `temperature: 0`, a stopped
 engine keeps the text, the object-wrapped answer is read, a date is masked as
 one datum, the guard reads a language that writes without spaces, and a
 language that spells a word with a digit is not refused.
+
+---
+
+## 13. Follow-up — the presenter composes the chart (ADR-0041)
+
+The configuration screen gained, per chart, a list of **every row the table
+carries** — each category, sub-group and metric, labelled by its full path —
+with checkboxes for the stacked bars and a dropdown for the line.
+
+```
+TTL                                  bars: ☐ Total · PPM
+                                           ☑ Imported · PPM
+Entrada total                              ☑ Local · PPM
+                                           ☐ Imported · SKD · PPM   …
+                                     line: Total · PPM
+```
+
+* the choice is stored per department, keyed by the table's own name, and the
+  series keys are the identity of ADR-0021 — a new import of the same workbook
+  keeps it;
+* the stack follows the workbook's row order, not the order of clicking;
+* a chart that mixes metrics gets the metric appended to each label;
+* no choice, or a choice whose rows the file no longer has, falls back to the
+  automatic composition — a stale setting never empties a chart. *Back to the
+  default* clears it;
+* the exports read the same composition, so the PDF and the deck show what the
+  screen shows.
+
+**Tests — 319 passing** (was 313): every row is offered, the chosen rows are
+the ones plotted, a composition may mix metrics and says which is which, the
+plotted values are still the workbook's, a stale choice falls back, and only
+the table that was configured changes.
+
+**One defect found while validating.** The configuration screen went blank
+after the change: the running backend still predated `chartSeries`, the panel
+read a field that was `undefined`, and React unmounted the tree. Restarting the
+API fixed it, but the page should not white-screen over a missing field — the
+panel now defaults every settings map to `{}`.
+
+---
+
+## 14. Follow-up — spelling, and an architecture that fits a 3 RPM quota
+
+**The bug behind "the third time it stops translating".** Switching *back* to
+the language the report was written in returned early and left the previous
+translation on screen under the wrong flag. The page now keeps the author's own
+words in memory and restores them on that switch — no request, and never a
+Korean report labelled Portuguese. Verified with five consecutive switches:
+`pt-BR → ko → pt-BR → ko → en`, each one correct.
+
+**Translation now corrects spelling** (ADR-0043). The prompt asks for two
+things per segment: the meaning the author intended, and a tidy-up of what was
+mistyped along the way — spelling, accents, capitalisation, spacing. *Correct
+the language, never the facts.* Measured on a note typed the way one is typed
+between a line stop and a meeting:
+
+```
+relatorio semanal de qualdade                     → Weekly quality report
+ocorencia                                          → occurrence
+fornecedor local acima do limte em Aug, 35.714 PPM → local supplier above the
+                                                     limit in Aug, 35.714 PPM
+contençao aplicda em 12/08; auditoria na proxima   → containment applied in
+  semana                                             12/08; audit next week
+```
+
+Zero rejections: `35.714` and `12/08` came back untouched, because they were
+masked out of the request in the first place.
+
+**Pacing and batching moved into the service** (ADR-0042), against the day this
+runs on a hosted model with three requests a minute:
+
+* a provider declares `requests_per_minute` and `max_batch`; `CSM_TRANSLATION_RPM`
+  overrides it without a code change;
+* one `RateLimiter` per engine, shared process-wide, releases a request every
+  `60 / rpm` seconds — a steady interval, not a burst;
+* a caller that would wait more than 90 s returns the source text;
+* `429`, `408` and `5xx` are retried, honouring `Retry-After`, backing off with
+  jitter otherwise; `400` and `401` are not — asking again only spends quota;
+* an engine that is down, over quota or nonsense returns the *source*: a
+  translation that did not happen is a page in the original language.
+
+A third engine came with it: `OpenAICompatibleProvider`, for `gpt-4o`, a
+gateway or a self-hosted server — the same prompt and the same parser as the
+other two. Its declared quota is 3 RPM, which is the case the architecture was
+built for. Multimodality is deliberately *not* wired: this seam sends text, and
+a report's photographs are evidence someone attached.
+
+**Tests — 328 passing** (was 319). The nine new ones cover the quota being
+respected by waiting, a wait that is too long returning the source, a local
+engine never being paced, only retryable failures being retried, `Retry-After`
+being honoured, a long report split into batches with the answers landing
+against the right segments, a dead engine keeping the text, the prompt asking
+for spelling, and an engine declaring its quota.

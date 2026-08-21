@@ -45,7 +45,16 @@ class TranslationResult:
 
 @runtime_checkable
 class TranslationProvider(Protocol):
-    """Contract every provider implements."""
+    """Contract every provider implements.
+
+    Two optional attributes declare what the engine can take, and the service
+    around it obeys them (ADR-0042):
+
+    * ``requests_per_minute`` — a hosted model may allow as few as three; the
+      service paces itself to that and never relies on the engine to refuse;
+    * ``max_batch`` — how many segments fit in one request.  Fewer, larger
+      requests is the only way to translate a report inside a tight quota.
+    """
 
     name: str
 
@@ -61,6 +70,8 @@ class NullProvider:
     """
 
     name = "null"
+    requests_per_minute = 0  # nothing leaves the process; no pacing needed
+    max_batch = 10_000
 
     def translate(self, request: TranslationRequest) -> TranslationResult:
         return TranslationResult(
@@ -71,23 +82,39 @@ class NullProvider:
         )
 
 
-#: what every engine is asked, word for word
+#: what every engine is asked, word for word.  One prompt for every engine:
+#: a local model and a remote one must be asked the same question, or the
+#: translation would depend on which was configured (ADR-0040).
 SYSTEM_PROMPT = """\
-You are a translation engine inside a quality-reporting system. You translate \
-short strings taken from spreadsheets and reports.
+You translate the text of a weekly quality report, written by an engineer for \
+an executive meeting. The segments are short: a column heading, a finding, an \
+action taken. They come from a factory floor, so they are often typed quickly.
 
-Rules, in order of importance:
-1. Translate the meaning of each segment from {source} into {target}. Nothing else.
-2. Never change, add, remove or reformat any number, date, percentage or code.
-3. Text between section signs, like §A§, is a placeholder for protected \
-content. Reproduce every placeholder exactly, in the same order, unchanged.
-4. If a segment has nothing to translate (a code, a number, an abbreviation), \
-return it byte for byte as it came.
-5. Keep the register short and factual, as in a technical report. Do not \
-explain, comment, expand or summarise.
+Do exactly two things to each segment:
+
+1. TRANSLATE it from {source} into {target}, keeping the meaning the author \
+   intended, not a word-for-word rendering.
+2. FIX what was mistyped along the way — spelling, accents, capitalisation and \
+   spacing — so the result reads as a careful person would have written it in \
+   {target}. Correct the language, never the facts: if the author says a \
+   supplier was audited, the translation says the supplier was audited.
+
+Hold to these rules, in this order of importance:
+
+* Never change, add, remove or reformat any number, date, percentage or code.
+* Text between section signs, like §A§, is a placeholder standing in for \
+  protected content. Reproduce every placeholder exactly as it appears, in the \
+  same order. Do not translate it, space it differently or drop it.
+* A segment that is a code, an abbreviation or a bare number has nothing to \
+  translate: return it byte for byte.
+* Keep the register of a technical report: short, factual, no politeness \
+  formulas. Do not explain, comment, expand, summarise or add a word the \
+  author did not write.
+* Keep the segment's own shape — a heading stays a heading, a sentence stays a \
+  sentence, a fragment stays a fragment.
 
 Return ONLY a JSON array of strings, the same length as the input array, in the \
-same order. No prose, no markdown, no keys."""
+same order. No prose, no markdown, no keys, no trailing commentary."""
 
 
 def parse_segments(text: str, expected: int, fallback: list[str]) -> list[str]:
@@ -172,6 +199,29 @@ def configure_from_settings() -> str:
             return "anthropic"
         logger.warning(
             "translation provider 'anthropic' requested without CSM_ANTHROPIC_API_KEY — "
+            "falling back to the null provider (text is returned untranslated)"
+        )
+
+    elif wanted == "openai":
+        from .openai_provider import OpenAICompatibleProvider
+
+        if settings.openai_api_key:
+            register_provider(
+                OpenAICompatibleProvider(
+                    settings.openai_api_key,
+                    settings.openai_model,
+                    url=settings.openai_url,
+                    max_batch=settings.translation_max_batch,
+                )
+            )
+            logger.info(
+                "translation provider: openai (%s at %s)",
+                settings.openai_model,
+                settings.openai_url,
+            )
+            return "openai"
+        logger.warning(
+            "translation provider 'openai' requested without CSM_OPENAI_API_KEY — "
             "falling back to the null provider (text is returned untranslated)"
         )
 

@@ -26,6 +26,11 @@ class OllamaProvider:
     """Translates through a model running on this machine."""
 
     name = "ollama"
+    #: no quota to respect: the model is on this machine and answers as fast as
+    #: it can.  The batch is bounded because a small model loses track of a very
+    #: long array, not because anything is rationed.
+    requests_per_minute = 0
+    max_batch = 40
 
     def __init__(self, url: str, model: str) -> None:
         self._url = url.rstrip("/")

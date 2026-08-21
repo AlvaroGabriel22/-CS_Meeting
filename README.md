@@ -43,16 +43,17 @@ every saved report is listed for download under **Reports**.
 | **Period comparison** with honest deltas (no percentage over a zero baseline) | ✅ done |
 | **Version comparison** — same row, same period, two snapshots | ✅ done |
 | **Three charts side by side** — IQC stacks SKD · CKD · Local under a Total line | ✅ done |
+| **Chart composed in the configuration** — pick the bars and the line per chart | ✅ done |
 | **Three tables side by side**, in the workbook's order (TTL · SEC · TNP) | ✅ done |
 | **Report builder** — columns, rows, and text / image / shape blocks per cell | ✅ done |
 | **Configuration screen per department** — upload, titles, report | ✅ done |
 | **Reports library** with per-part downloads (report · charts · tables · deck) | ✅ done |
 | **No generated analysis, no calculation of our own** | ✅ by design (ADR-0033, ADR-0036) |
-| **AI translation of what a person typed** — the report and the titles | ✅ local (Ollama) or remote (Claude) |
+| **AI translation of what a person typed** — translated *and* spell-checked | ✅ Ollama · Claude · OpenAI-compatible |
 | **Issue reports** — editable text, status, images, provable numbers | ✅ done |
 | **PDF export** — structured, searchable, tables and images preserved | ✅ done |
 | **PPT export** — editable text, native chart, native tables | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 313 tests |
+| Tests + generated raw-data fixtures | ✅ 328 tests |
 | Rich Issue Report editor, AI translation provider | ⏳ next sprints |
 | OQC / FIELD structures | ⏳ waiting for the real files |
 
@@ -101,6 +102,31 @@ CSM_TRANSLATION_PROVIDER=anthropic
 CSM_ANTHROPIC_API_KEY=sk-ant-…
 CSM_TRANSLATION_MODEL=claude-sonnet-5
 ```
+
+**Anything speaking the OpenAI chat API** — `gpt-4o`, a gateway, a self-hosted
+server:
+
+```bash
+CSM_TRANSLATION_PROVIDER=openai
+CSM_OPENAI_API_KEY=sk-…
+CSM_OPENAI_MODEL=gpt-4o-mini
+CSM_OPENAI_URL=https://api.openai.com/v1
+```
+
+Whichever engine is configured, the system paces itself to its quota, batches
+the whole report into as few requests as possible, retries what the service
+asks it to retry, and falls back to the original text rather than failing
+(ADR-0042):
+
+```bash
+CSM_TRANSLATION_RPM=3        # override the engine's declared limit
+CSM_TRANSLATION_MAX_BATCH=60 # segments per request
+CSM_TRANSLATION_RETRIES=3
+```
+
+The engine both translates the text and corrects what was mistyped in it —
+spelling, accents, capitalisation — while every number, date and code is masked
+out of the request and restored afterwards (ADR-0043).
 
 `GET /api/translation/status` reports which provider is live.
 

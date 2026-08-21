@@ -398,3 +398,118 @@ def test_an_image_is_stored_byte_for_byte(client, iqc_real: Path) -> None:
     assert uploaded["sizeBytes"] == len(PNG)
     served = client.get(uploaded["url"])
     assert served.content == PNG
+
+
+# --------------------------------------------------------------------------- #
+# The presenter composes the chart (ADR-0041)
+# --------------------------------------------------------------------------- #
+def _options(client, version_id: int, table: str = "TTL") -> dict[str, str]:
+    body = client.get(f"/api/versions/{version_id}/charts").json()
+    chart = next(item for item in body["charts"] if item["table"] == table)
+    return {option["path"]: option["key"] for option in chart["available"]}
+
+
+def test_every_row_of_the_table_is_offered(client, iqc_real: Path) -> None:
+    """The chooser picks from what the workbook has, never from an invented list."""
+    version_id = _upload(client, iqc_real)["versionId"]
+    options = _options(client, version_id)
+
+    assert "Total · PPM" in options
+    assert "Imported · SKD · PPM" in options
+    assert "Local · Insp. Lot" in options  # other metrics are offered too
+    assert all(key.startswith("TTL|") for key in options.values())
+
+
+def test_the_chosen_rows_are_the_ones_plotted(client, iqc_real: Path) -> None:
+    version_id = _upload(client, iqc_real)["versionId"]
+    options = _options(client, version_id)
+
+    client.put(
+        "/api/departments/IQC/settings",
+        json={
+            "chartSeries": {
+                "TTL": {
+                    "bars": [options["Imported · PPM"], options["Local · PPM"]],
+                    "line": options["Total · PPM"],
+                }
+            }
+        },
+    )
+
+    chart = client.get(f"/api/versions/{version_id}/charts").json()["charts"][0]
+    assert chart["configured"] is True
+    assert [series["label"] for series in chart["bars"]] == ["Imported", "Local"]
+    assert chart["line"]["label"] == "Total"
+    assert chart["stacked"] is True  # IQC still stacks what it is given
+
+
+def test_a_composition_may_mix_metrics_and_says_which_is_which(
+    client, iqc_real: Path
+) -> None:
+    """Bars in lots, line in PPM: the labels carry the metric or they read alike."""
+    version_id = _upload(client, iqc_real)["versionId"]
+    options = _options(client, version_id)
+
+    client.put(
+        "/api/departments/IQC/settings",
+        json={
+            "chartSeries": {
+                "TTL": {
+                    "bars": [options["Imported · Rej. Lot"], options["Local · Rej. Lot"]],
+                    "line": options["Total · PPM"],
+                }
+            }
+        },
+    )
+
+    chart = client.get(f"/api/versions/{version_id}/charts").json()["charts"][0]
+    assert [series["label"] for series in chart["bars"]] == [
+        "Imported · Rej. Lot",
+        "Local · Rej. Lot",
+    ]
+    assert chart["line"]["label"] == "Total · PPM"
+
+
+def test_the_plotted_values_are_still_the_workbook_s(client, iqc_real: Path) -> None:
+    """Choosing what to draw never changes what it says."""
+    version_id = _upload(client, iqc_real)["versionId"]
+    options = _options(client, version_id)
+    client.put(
+        "/api/departments/IQC/settings",
+        json={"chartSeries": {"TTL": {"bars": [options["Imported · SKD · PPM"]]}}},
+    )
+
+    chart = client.get(f"/api/versions/{version_id}/charts").json()["charts"][0]
+    expected = _workbook_numbers(iqc_real)
+    for point in chart["bars"][0]["points"]:
+        if point["value"] is not None:
+            assert point["value"] == pytest.approx(expected[point["source"]])
+
+
+def test_a_stale_choice_falls_back_instead_of_drawing_nothing(
+    client, iqc_real: Path
+) -> None:
+    """A row the workbook no longer has must not leave an empty chart."""
+    version_id = _upload(client, iqc_real)["versionId"]
+    client.put(
+        "/api/departments/IQC/settings",
+        json={"chartSeries": {"TTL": {"bars": ["TTL|Gone||PPM|"], "line": "TTL|Gone||PPM|"}}},
+    )
+
+    chart = client.get(f"/api/versions/{version_id}/charts").json()["charts"][0]
+    assert chart["configured"] is False
+    assert [series["label"] for series in chart["bars"]] == ["SKD", "CKD", "Local"]
+
+
+def test_only_the_table_that_was_configured_changes(client, iqc_real: Path) -> None:
+    version_id = _upload(client, iqc_real)["versionId"]
+    options = _options(client, version_id)
+    client.put(
+        "/api/departments/IQC/settings",
+        json={"chartSeries": {"TTL": {"bars": [options["Local · PPM"]]}}},
+    )
+
+    charts_out = client.get(f"/api/versions/{version_id}/charts").json()["charts"]
+    assert charts_out[0]["configured"] is True
+    assert charts_out[1]["configured"] is False  # SEC keeps the default
+    assert [s["label"] for s in charts_out[1]["bars"]] == ["SKD", "CKD", "Local"]

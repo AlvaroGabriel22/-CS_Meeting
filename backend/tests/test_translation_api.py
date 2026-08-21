@@ -475,3 +475,182 @@ def test_an_answer_wrapped_in_an_object_is_still_read() -> None:
     assert parse_segments('{"translations": ["um", "dois"]}', 2, ["one", "two"]) == ["um", "dois"]
     assert parse_segments('here you go:\n["um", "dois"]', 2, ["one", "two"]) == ["um", "dois"]
     assert parse_segments("no json at all", 2, ["one", "two"]) == ["one", "two"]
+
+
+# --------------------------------------------------------------------------- #
+# Pacing, batching and retrying — the policy every engine is held to (ADR-0042)
+# --------------------------------------------------------------------------- #
+def test_a_quota_is_respected_by_waiting_not_by_failing(monkeypatch) -> None:
+    """Three a minute means one every twenty seconds, and the caller waits."""
+    from app.services.translation.limits import RateLimiter
+
+    slept: list[float] = []
+    monkeypatch.setattr("app.services.translation.limits.time.sleep", slept.append)
+
+    limiter = RateLimiter(3)  # 3 rpm -> one every 20s
+    assert limiter.interval == pytest.approx(20.0)
+    assert limiter.acquire() and slept == []          # the first goes straight through
+    assert limiter.acquire()
+    assert slept and slept[0] == pytest.approx(20.0, abs=1)
+
+
+def test_a_wait_that_is_too_long_returns_the_source(monkeypatch) -> None:
+    """A meeting cannot wait five minutes for a heading."""
+    from app.services.translation.limits import RateLimiter
+
+    monkeypatch.setattr("app.services.translation.limits.time.sleep", lambda _: None)
+    limiter = RateLimiter(1, max_wait=30)  # one a minute
+    assert limiter.acquire()
+    assert limiter.acquire() is False  # the next turn is 60s away
+
+
+def test_a_local_engine_is_never_paced() -> None:
+    from app.services.translation.limits import RateLimiter
+
+    limiter = RateLimiter(0)
+    assert limiter.interval == 0
+    assert all(limiter.acquire() for _ in range(50))
+
+
+def test_only_what_is_worth_retrying_is_retried(monkeypatch) -> None:
+    from app.services.translation.limits import call_with_retry, is_retryable
+
+    class Response:
+        def __init__(self, status: int, retry_after: str | None = None):
+            self.status_code = status
+            self.headers = {"retry-after": retry_after} if retry_after else {}
+
+    class Refused(Exception):
+        def __init__(self, status: int, retry_after: str | None = None):
+            super().__init__(str(status))
+            self.response = Response(status, retry_after)
+
+    assert is_retryable(Refused(429)) and is_retryable(Refused(503))
+    assert not is_retryable(Refused(400)) and not is_retryable(Refused(401))
+
+    waited: list[float] = []
+    monkeypatch.setattr("app.services.translation.limits.time.sleep", waited.append)
+
+    attempts = {"count": 0}
+
+    def flaky():
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise Refused(429, retry_after="7")
+        return "done"
+
+    assert call_with_retry(flaky, attempts=3) == "done"
+    assert waited == [7.0, 7.0]  # the service asked for seven seconds, twice
+
+
+def test_a_bad_request_is_not_retried(monkeypatch) -> None:
+    from app.services.translation.limits import call_with_retry
+
+    class Refused(Exception):
+        response = type("R", (), {"status_code": 400, "headers": {}})()
+
+    calls = {"count": 0}
+
+    def rejected():
+        calls["count"] += 1
+        raise Refused()
+
+    monkeypatch.setattr("app.services.translation.limits.time.sleep", lambda _: None)
+    with pytest.raises(Refused):
+        call_with_retry(rejected, attempts=3)
+    assert calls["count"] == 1
+
+
+def test_a_long_report_is_split_into_batches(client, iqc_real: Path, monkeypatch) -> None:
+    """Fewer, larger requests: under a tight quota that is what decides."""
+    provider = FakeProvider()
+    provider.max_batch = 3
+    register_provider(provider)
+    monkeypatch.setattr(
+        "app.services.translation.service.get_provider", lambda name=None: provider
+    )
+
+    version_id = _upload(client, iqc_real)["versionId"]
+    lines = [f"linha numero {index}" for index in range(10)]
+    client.put(
+        f"/api/versions/{version_id}/report",
+        json={
+            "content": {
+                "title": "Relatorio longo",
+                "columns": [{"id": "c1", "name": "Observacao"}],
+                "rows": [
+                    {
+                        "id": "r1",
+                        "cells": {
+                            "c1": [
+                                {"id": f"b{index}", "type": "text", "text": line}
+                                for index, line in enumerate(lines)
+                            ]
+                        },
+                    }
+                ],
+            }
+        },
+    )
+
+    body = client.post(
+        f"/api/versions/{version_id}/translation", json={"targetLanguage": "ko"}
+    ).json()
+
+    assert body["stringCount"] == 12  # title + column + ten lines
+    assert len(provider.seen) == 4  # 12 segments in batches of three
+    assert all(len(batch) <= 3 for batch in provider.seen)
+    # and the answers land against the right segments, batch boundaries included
+    texts = [
+        block["text"]
+        for row in body["translated"]["rows"]
+        for blocks in row["cells"].values()
+        for block in blocks
+    ]
+    assert texts == [f"[ko] {line}" for line in lines]
+
+
+def test_an_engine_that_keeps_failing_returns_the_source(
+    client, iqc_real: Path, monkeypatch
+) -> None:
+    """A dead engine is a page in the original language, never a blank page."""
+
+    class Broken:
+        name = "broken"
+        requests_per_minute = 0
+        max_batch = 50
+
+        def translate(self, request):
+            raise RuntimeError("engine is down")
+
+    monkeypatch.setattr("app.services.translation.limits.time.sleep", lambda _: None)
+    provider = Broken()
+    register_provider(provider)
+    monkeypatch.setattr(
+        "app.services.translation.service.get_provider", lambda name=None: provider
+    )
+
+    version_id = _with_report(client, iqc_real)
+    body = client.post(
+        f"/api/versions/{version_id}/translation", json={"targetLanguage": "ko"}
+    ).json()
+    assert body["translated"]["title"] == TITLE
+
+
+def test_the_prompt_asks_for_spelling_to_be_fixed() -> None:
+    """Translating a shop-floor note means tidying what was mistyped."""
+    from app.services.translation.provider import SYSTEM_PROMPT
+
+    prompt = SYSTEM_PROMPT.format(source="pt-BR", target="ko")
+    assert "spelling" in prompt and "accents" in prompt
+    assert "Never change, add, remove or reformat any number" in prompt
+    assert "§A§" in prompt
+
+
+def test_an_openai_compatible_engine_declares_its_quota() -> None:
+    from app.services.translation.openai_provider import OpenAICompatibleProvider
+
+    engine = OpenAICompatibleProvider("key", "gpt-4o-mini", requests_per_minute=3)
+    assert engine.requests_per_minute == 3
+    assert engine.model == "gpt-4o-mini"
+    assert engine.max_batch >= 10  # a tight quota needs a generous batch

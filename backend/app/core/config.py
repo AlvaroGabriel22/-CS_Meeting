@@ -44,6 +44,18 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "gemma4:12b"
+    #: an OpenAI-compatible endpoint: gpt-4o, a gateway, or anything speaking
+    #: /v1/chat/completions
+    openai_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
+    openai_api_key: str | None = None
+
+    #: how the system paces itself.  ``None`` means "whatever the engine
+    #: declares"; a number overrides it, which is how a tightened quota is
+    #: applied without a code change (ADR-0042)
+    translation_rpm: float | None = None
+    translation_max_batch: int = 60
+    translation_retries: int = 3
 
     # --- i18n ------------------------------------------------------------- #
     default_language: str = "en"

@@ -24,19 +24,19 @@ export function Home() {
         {t('app.name')}
       </h1>
 
-      <section className="surface-card card-3d-stage w-full max-w-[1240px] bg-canvas/60 p-8 sm:p-12">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="surface-card card-3d-stage w-full max-w-[1440px] bg-canvas/60 p-10 sm:p-16">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
           {DEPARTMENTS.map((department) => (
             <Link
               key={department}
               to={`/department/${department}`}
-              className="card-3d card-blue group flex flex-col items-center justify-center gap-6 rounded-2xl px-6 py-16"
+              className="card-3d group flex flex-col items-center justify-center gap-6 rounded-2xl border border-line bg-white px-6 py-20"
             >
-              <span className="text-5xl font-semibold leading-none tracking-tight text-white sm:text-6xl">
+              <span className="text-5xl font-semibold leading-none tracking-tight text-brand-900 sm:text-6xl">
                 {department}
               </span>
-              <span className="h-px w-12 bg-white/30 transition-colors group-hover:bg-white/60" />
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-200 transition-colors group-hover:text-white">
+              <span className="h-px w-12 bg-line transition-colors group-hover:bg-brand-300" />
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors group-hover:text-brand-700">
                 {t('home.open')}
                 <ArrowRight
                   className="h-4 w-4 transition-transform group-hover:translate-x-0.5"

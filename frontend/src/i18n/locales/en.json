@@ -87,7 +87,8 @@
       "line": "Line",
       "arrow": "Arrow",
       "divider": "Divider"
-    }
+    },
+    "translating": "Translating…"
   },
   "executive": {
     "version": "Version"
@@ -105,10 +106,15 @@
     "saveVersion": "Save version",
     "saved": "Saved",
     "uploadFirst": "Upload a workbook first.",
-    "titlesHint": "Rename what appears above each chart and table. The numbers under them always come from the workbook.",
+    "titlesHint": "Name each chart and table, and choose what each chart plots. The numbers always come from the workbook.",
     "chartTitles": "Charts",
     "tableTitles": "Tables",
-    "keepWorkbookName": "Keep “{{name}}”"
+    "keepWorkbookName": "Keep “{{name}}”",
+    "bars": "Stacked bars",
+    "line": "Line",
+    "noLine": "No line",
+    "resetChart": "Back to the default",
+    "chartHint": "The rows come from the workbook; choosing changes which of them are drawn, never what they say."
   },
   "reports": {
     "title": "Reports",

@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 
@@ -44,6 +44,13 @@ export function Department() {
   const [tableTitles, setTableTitles] = useState<Record<string, string>>({})
   const [chartTitles, setChartTitles] = useState<Record<string, string>>({})
   const [reportLanguage, setReportLanguage] = useState<string>('en')
+  //: what the author actually wrote, kept so switching back to their language
+  //: restores it without asking a provider anything
+  const original = useRef<{
+    report: ReportContent | null
+    chartTitles: Record<string, string>
+    tableTitles: Record<string, string>
+  }>({ report: null, chartTitles: {}, tableTitles: {} })
   const [translating, setTranslating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -102,6 +109,11 @@ export function Department() {
         setView(versionView)
         setReport(reportData.content)
         setReportLanguage(reportData.language)
+        original.current = {
+          report: reportData.content,
+          chartTitles: settings.chartTitles ?? {},
+          tableTitles: settings.tableTitles ?? {},
+        }
         setError(null)
       } catch (cause) {
         if (active) setError(cause instanceof Error ? cause.message : String(cause))
@@ -118,9 +130,19 @@ export function Department() {
   // The interface ships in three languages; what a person *wrote* does not.
   // Switching language therefore sends the report and the titles they typed to
   // the translation provider, and nothing else on the page.
+  //
+  // Switching *back* to the language the report was written in restores the
+  // author's own words from memory — no request, and never a translation left
+  // on screen under the wrong flag.
   useEffect(() => {
-    if (!versionId || !report) return
-    if (i18n.language === reportLanguage) return
+    if (!versionId || !original.current.report) return
+
+    if (i18n.language === reportLanguage) {
+      setReport(original.current.report)
+      setChartTitles(original.current.chartTitles)
+      setTableTitles(original.current.tableTitles)
+      return
+    }
 
     let active = true
     setTranslating(true)
@@ -194,8 +216,18 @@ export function Department() {
           </div>
 
           {hasReport && (
-            <section className={cn('surface-card p-5', translating && 'opacity-60')}>
-              <ReportView content={report!} />
+            <section className="surface-card relative p-5">
+              {/* a local model takes seconds to answer: say so, rather than
+                  leaving the reader wondering whether the switch worked */}
+              {translating && (
+                <span className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  {t('report.translating')}
+                </span>
+              )}
+              <div className={cn('transition-opacity', translating && 'opacity-50')}>
+                <ReportView content={report!} />
+              </div>
             </section>
           )}
         </div>

@@ -137,7 +137,11 @@ export const api = {
 
   saveDepartmentSettings: (
     code: Department,
-    payload: { chartTitles: Record<string, string>; tableTitles: Record<string, string> },
+    payload: {
+      chartTitles: Record<string, string>
+      tableTitles: Record<string, string>
+      chartSeries: Record<string, { bars: string[]; line: string | null }>
+    },
   ) =>
     request<DepartmentSettings>(`/api/departments/${code}/settings`, {
       method: 'PUT',
