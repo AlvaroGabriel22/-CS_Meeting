@@ -1,7 +1,9 @@
 import type {
+  ChartSeriesChoice,
   ChartsResponse,
   Department,
   ExportRequest,
+  Glossary,
   HealthInfo,
   ImportRecord,
   Interpretation,
@@ -127,9 +129,17 @@ export const api = {
     })
   },
 
-  /** Every saved report, newest first. */
-  listReports: (department?: Department) =>
-    request<ReportSummary[]>(`/api/reports${department ? `?department=${department}` : ''}`),
+  /**
+   * Every saved report, newest first.
+   *
+   * `language` renders the titles for the reader: a title is what somebody
+   * typed, so it goes through the translation layer — all of them in one
+   * request, cache first.
+   */
+  listReports: (department?: Department, language?: string) =>
+    request<ReportSummary[]>(
+      `/api/reports${query({ department, language })}`,
+    ),
 
   /** What this department's charts and tables are called. */
   getDepartmentSettings: (code: Department) =>
@@ -140,7 +150,7 @@ export const api = {
     payload: {
       chartTitles: Record<string, string>
       tableTitles: Record<string, string>
-      chartSeries: Record<string, { bars: string[]; line: string | null }>
+      chartSeries: Record<string, ChartSeriesChoice>
     },
   ) =>
     request<DepartmentSettings>(`/api/departments/${code}/settings`, {
@@ -168,6 +178,10 @@ export const api = {
 
   /** Which translation provider the backend is configured with. */
   getTranslationStatus: () => request<TranslationStatus>('/api/translation/status'),
+
+  /** How the workbook's own vocabulary reads in one language. */
+  getGlossary: (language: string) =>
+    request<Glossary>(`/api/glossary?language=${encodeURIComponent(language)}`),
 
   /** Export what the page is showing; the browser downloads the file. */
   exportView: async (versionId: number, format: 'pdf' | 'ppt', payload: ExportRequest) => {

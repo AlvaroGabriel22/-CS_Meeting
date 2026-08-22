@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "CS Meeting"
+    "name": "CS 회의"
   },
   "nav": {
     "home": "홈",
@@ -12,12 +12,12 @@
     "open": "열기"
   },
   "department": {
-    "IQC": "IQC",
-    "OQC": "OQC",
-    "FIELD": "FIELD",
-    "IQC_full": "수입 품질 관리",
-    "OQC_full": "출하 품질 관리",
-    "FIELD_full": "필드 품질",
+    "IQC": "부품품질",
+    "OQC": "출하품질",
+    "FIELD": "시장품질",
+    "IQC_full": "부품품질",
+    "OQC_full": "출하품질",
+    "FIELD_full": "시장품질",
     "graphs": "그래프",
     "tables": "표",
     "issueReports": "이슈 리포트",
@@ -110,9 +110,10 @@
     "chartTitles": "그래프",
     "tableTitles": "표",
     "keepWorkbookName": "“{{name}}” 유지",
-    "bars": "누적 막대",
+    "bars": "막대",
     "line": "선",
     "noLine": "선 없음",
+    "showChart": "발표 화면에 표시",
     "resetChart": "기본값으로",
     "chartHint": "행은 파일에서 옵니다. 선택은 무엇을 그릴지 바꿀 뿐, 값은 바꾸지 않습니다."
   },

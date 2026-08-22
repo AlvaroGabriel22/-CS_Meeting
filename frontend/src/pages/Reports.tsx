@@ -24,7 +24,7 @@ const PARTS: Record<string, ExportRequest> = {
  * charts, the tables — plus the whole deck.
  */
 export function Reports() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [reports, setReports] = useState<ReportSummary[]>([])
   const [filter, setFilter] = useState<DepartmentCode | 'all'>('all')
   const [loading, setLoading] = useState(true)
@@ -34,11 +34,11 @@ export function Reports() {
   useEffect(() => {
     setLoading(true)
     void api
-      .listReports(filter === 'all' ? undefined : filter)
+      .listReports(filter === 'all' ? undefined : filter, i18n.language)
       .then(setReports)
       .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
       .finally(() => setLoading(false))
-  }, [filter])
+  }, [filter, i18n.language])
 
   const download = async (versionId: number, part: keyof typeof PARTS | 'all', format: 'pdf' | 'ppt') => {
     const key = `${versionId}-${part}-${format}`
@@ -80,7 +80,7 @@ export function Reports() {
                 filter === value ? 'bg-brand-100 text-brand-800' : 'text-ink-500 hover:bg-brand-50',
               )}
             >
-              {value === 'all' ? t('reports.all') : value}
+              {value === 'all' ? t('reports.all') : t(`department.${value}`)}
             </button>
           ))}
         </div>
@@ -117,7 +117,9 @@ export function Reports() {
             <tbody>
               {reports.map((report) => (
                 <tr key={report.versionId} className="border-b border-line/60 last:border-0">
-                  <td className="px-4 py-3 font-medium text-brand-900">{report.department}</td>
+                  <td className="px-4 py-3 font-medium text-brand-900">
+                    {t(`department.${report.department}`)}
+                  </td>
                   <td className="px-4 py-3 text-ink-700">
                     v{report.versionNumber} · {report.versionLabel ?? '—'}
                   </td>

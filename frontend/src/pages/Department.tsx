@@ -105,7 +105,9 @@ export function Department() {
         if (!active) return
         setTableTitles(settings.tableTitles)
         setChartTitles(settings.chartTitles)
-        setCharts(chartData.charts)
+        // the presentation shows what the presenter chose to show; the rest
+        // of what the workbook offers lives in the configuration
+        setCharts(chartData.charts.filter((chart) => chart.enabled))
         setView(versionView)
         setReport(reportData.content)
         setReportLanguage(reportData.language)
@@ -205,7 +207,17 @@ export function Department() {
         <div className="space-y-6">
           <DepartmentCharts charts={charts} titles={chartTitles} />
 
-          <div className="surface-card grid gap-4 p-4 lg:grid-cols-3">
+          {/* the workbook decides how many tables there are: three side by
+              side for IQC, one across the page for FIELD */}
+          <div
+            className={`surface-card grid gap-4 p-4 ${
+              (view?.tables.length ?? 0) === 1
+                ? 'lg:grid-cols-1'
+                : (view?.tables.length ?? 0) === 2
+                  ? 'lg:grid-cols-2'
+                  : 'lg:grid-cols-3'
+            }`}
+          >
             {view?.tables.map((item) => (
               <IQCTable
                 key={`${item.sheet}-${item.sourceRange}`}

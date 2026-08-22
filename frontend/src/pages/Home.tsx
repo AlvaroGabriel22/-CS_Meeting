@@ -2,6 +2,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
+import { cn } from '@/lib/utils'
 import type { Department } from '@/types/api'
 
 const DEPARTMENTS: Department[] = ['IQC', 'OQC', 'FIELD']
@@ -26,14 +27,23 @@ export function Home() {
 
       <section className="surface-card card-3d-stage w-full max-w-[1440px] bg-canvas/60 p-10 sm:p-16">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-          {DEPARTMENTS.map((department) => (
+          {DEPARTMENTS.map((department) => {
+            // in Korean a department reads 부품품질, not IQC: four glyphs where
+            // there were three letters, so the letterform gives up a size
+            const name = t(`department.${department}`)
+            return (
             <Link
               key={department}
               to={`/department/${department}`}
               className="card-3d group flex flex-col items-center justify-center gap-6 rounded-2xl border border-line bg-white px-6 py-20"
             >
-              <span className="text-5xl font-semibold leading-none tracking-tight text-brand-900 sm:text-6xl">
-                {department}
+              <span
+                className={cn(
+                  'font-semibold leading-none tracking-tight text-brand-900',
+                  name.length > 5 ? 'text-3xl sm:text-4xl' : 'text-5xl sm:text-6xl',
+                )}
+              >
+                {name}
               </span>
               <span className="h-px w-12 bg-line transition-colors group-hover:bg-brand-300" />
               <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors group-hover:text-brand-700">
@@ -44,7 +54,8 @@ export function Home() {
                 />
               </span>
             </Link>
-          ))}
+            )
+          })}
         </div>
       </section>
     </div>

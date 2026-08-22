@@ -110,9 +110,10 @@
     "chartTitles": "Gráficos",
     "tableTitles": "Tabelas",
     "keepWorkbookName": "Manter “{{name}}”",
-    "bars": "Barras empilhadas",
+    "bars": "Barras",
     "line": "Linha",
     "noLine": "Sem linha",
+    "showChart": "Mostrar na apresentação",
     "resetChart": "Voltar ao padrão",
     "chartHint": "As linhas vêm da planilha; escolher muda quais delas são desenhadas, nunca o que elas dizem."
   },

@@ -16,7 +16,8 @@ import logging
 from fastapi import APIRouter
 
 from app.core.config import get_settings
-from app.schemas.translation import TranslationStatusOut
+from app.domain.glossary import UNIVERSAL, glossary_for
+from app.schemas.translation import GlossaryOut, TranslationStatusOut
 from app.services.translation import get_provider
 
 logger = logging.getLogger(__name__)
@@ -40,4 +41,22 @@ def translation_status() -> TranslationStatusOut:
         languages=list(settings.supported_languages),
         default_language=settings.default_language,
         active=provider.name != "null",
+    )
+
+
+@router.get("/glossary", response_model=GlossaryOut)
+def glossary(language: str | None = None) -> GlossaryOut:
+    """How the workbook's own vocabulary reads in one language.
+
+    A table somebody decided, not a translation asked for each time: ``Total``
+    is ``누적`` because the department says so, and ``PPM`` is ``PPM`` because
+    it is read that way everywhere (ADR-0044).  A term that is not in the table
+    is shown exactly as the workbook writes it.
+    """
+    settings = get_settings()
+    wanted = language or settings.default_language
+    return GlossaryOut(
+        language=wanted,
+        terms=glossary_for(wanted),
+        universal=list(UNIVERSAL),
     )

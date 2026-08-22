@@ -1,3 +1,4 @@
+import { useGlossary } from '@/lib/glossary'
 import { cn } from '@/lib/utils'
 import type { RenderRow, TableView } from '@/types/api'
 
@@ -30,6 +31,7 @@ function TableRows({ rows }: { rows: RenderRow[] }) {
  * month, no quarter and no week name.
  */
 export function IQCTable({ view, title }: { view: TableView; title?: string }) {
+  const term = useGlossary()
   const headerRows = view.rows.filter((row) => row.kind === 'header')
   const bodyRows = view.rows.filter((row) => row.kind === 'data')
 
@@ -37,7 +39,7 @@ export function IQCTable({ view, title }: { view: TableView; title?: string }) {
     <section className="min-w-0 overflow-hidden rounded-lg border border-line">
       <header className="border-b border-line px-4 py-2.5">
         <h3 className="text-sm font-semibold text-brand-900">
-          {title || view.title || view.sheet}
+          {title || view.title || term(view.sheet)}
         </h3>
       </header>
 

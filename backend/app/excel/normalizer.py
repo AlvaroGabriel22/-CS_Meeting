@@ -11,6 +11,7 @@ After this layer nothing needs the workbook again.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 
 from openpyxl.utils import range_boundaries
 
@@ -128,6 +129,11 @@ def normalize_table(
                 numeric_cells += 1
 
             display = V.display_format(source.number_format, value_type)
+            if role is CellRole.HEADER and value_type is ValueType.NUMBER:
+                # a year in a header is a name, not a quantity: Excel writes
+                # 2025, and grouping it into "2,025" would be the system
+                # inventing a thousand that nobody typed
+                display = replace(display, thousands=False, decimals=0)
             style_id = _style_id(source.style)
             if style_id and style_id not in table.styles:
                 table.styles[style_id] = source.style

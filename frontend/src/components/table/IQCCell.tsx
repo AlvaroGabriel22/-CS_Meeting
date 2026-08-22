@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 
+import { useGlossary } from '@/lib/glossary'
 import { cn } from '@/lib/utils'
 import type { RenderCell } from '@/types/api'
 
@@ -31,10 +32,16 @@ const ALIGN: Record<string, string> = {
  * coordinates it covers are simply absent from the model. Empty cells stay
  * empty — the IQC headline rows hold the block's figure and no metric name, so
  * nothing may be written into them.
+ *
+ * A label, a corner and a period header read in the reader's language through
+ * the glossary; a value never does (ADR-0044).
  */
 export function IQCCell({ cell }: { cell: RenderCell }) {
+  const term = useGlossary()
   const Tag = cell.kind === 'corner' || cell.kind === 'period' ? 'th' : 'td'
   const isNumber = cell.kind === 'value'
+  const isWords = cell.kind === 'label' || cell.kind === 'corner' || cell.kind === 'period'
+  const text = isWords ? term(cell.text) : cell.text
 
   return (
     <Tag
@@ -57,11 +64,11 @@ export function IQCCell({ cell }: { cell: RenderCell }) {
         cell.isHeadline && cell.kind === 'label' && 'font-semibold text-brand-900',
       )}
     >
-      {cell.text}
+      {text}
       {!cell.text && cell.inferredText && (
         // the workbook does not say this; the parser read it. Shown apart so it
         // can never be mistaken for the file's own content.
-        <span className="italic text-ink-300">{cell.inferredText}</span>
+        <span className="italic text-ink-300">{term(cell.inferredText)}</span>
       )}
     </Tag>
   )

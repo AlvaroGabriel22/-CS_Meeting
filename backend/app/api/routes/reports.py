@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import NotFound, ValidationError
+from app.domain.glossary import translate_term
 from app.db.base import get_session
 from app.db.models import (
     Department,
@@ -121,7 +122,11 @@ def get_charts(version_id: int, session: Session = Depends(get_session)) -> Char
 
     payload = []
     for chart in built["charts"]:
-        payload.append({**chart, "title": titles.get(chart["table"]) or None})
+        # a chart is named by its own id; settings written when a table meant
+        # exactly one chart are still found under the table's name
+        payload.append(
+            {**chart, "title": titles.get(chart["id"]) or titles.get(chart["table"]) or None}
+        )
     return ChartsResponseOut.model_validate(
         {
             "versionId": version.id,
@@ -272,13 +277,23 @@ def translate_authored_text(
 @router.get("/reports", response_model=list[ReportSummaryOut])
 def list_reports(
     department: str | None = Query(None),
+    language: str | None = Query(None),
     session: Session = Depends(get_session),
 ) -> list[ReportSummaryOut]:
-    """Every report that has been saved, newest first, ready to download."""
+    """Every report that has been saved, newest first, ready to download.
+
+    ``language`` renders the titles for the reader.  A title is authored text —
+    nobody knows it before somebody types it — so it goes through the
+    translation layer, cache first and all the titles in one request, which is
+    what a three-a-minute quota needs (ADR-0039, ADR-0042).  The department and
+    the period come from the glossary instead, because those are decided terms
+    (ADR-0044).
+    """
     query = select(VersionReport).order_by(VersionReport.updated_at.desc())
     found = list(session.scalars(query))
 
     summaries: list[ReportSummaryOut] = []
+    to_translate: list[str] = []
     for report in found:
         version = report.version
         if version is None:  # pragma: no cover - a report always has its version
@@ -287,13 +302,16 @@ def list_reports(
         if department and code != department:
             continue
         content = report.content or {}
+        title = content.get("title") or ""
+        if language and title and report.language != language:
+            to_translate.append(title)
         summaries.append(
             ReportSummaryOut(
                 version_id=report.version_id,
                 department=code,
                 version_number=version.number,
-                version_label=version.label,
-                title=content.get("title") or "",
+                version_label=translate_term(version.label, language),
+                title=title,
                 column_count=len(content.get("columns") or []),
                 row_count=len(content.get("rows") or []),
                 image_count=len(report.media),
@@ -301,6 +319,22 @@ def list_reports(
                 updated_at=report.updated_at,
             )
         )
+
+    if to_translate:
+        # every title in one request: N rows must not become N calls
+        source = found[0].language if found else "en"
+        outcome = TranslationService().translate_texts(
+            session,
+            list(dict.fromkeys(to_translate)),
+            source_language=source,
+            target_language=language or source,
+            department=department or "IQC",
+        )
+        session.commit()
+        mapping = outcome.mapping
+        for summary in summaries:
+            summary.title = mapping.get(summary.title, summary.title)
+
     return summaries
 
 
@@ -339,9 +373,9 @@ def save_department_settings(
         key: value.strip() for key, value in payload.table_titles.items() if value.strip()
     }
     settings.chart_series = {
-        table: {"bars": list(choice.bars), "line": choice.line}
-        for table, choice in payload.chart_series.items()
-        if choice.bars or choice.line
+        chart: {"bars": list(choice.bars), "line": choice.line, "enabled": choice.enabled}
+        for chart, choice in payload.chart_series.items()
+        if choice.bars or choice.line or choice.enabled is not None
     }
     session.commit()
     logger.info(

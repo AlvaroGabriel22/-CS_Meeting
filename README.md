@@ -50,10 +50,11 @@ every saved report is listed for download under **Reports**.
 | **Reports library** with per-part downloads (report · charts · tables · deck) | ✅ done |
 | **No generated analysis, no calculation of our own** | ✅ by design (ADR-0033, ADR-0036) |
 | **AI translation of what a person typed** — translated *and* spell-checked | ✅ Ollama · Claude · OpenAI-compatible |
+| **Workbook vocabulary in the reader's language** — a curated glossary, never a guess | ✅ done |
 | **Issue reports** — editable text, status, images, provable numbers | ✅ done |
 | **PDF export** — structured, searchable, tables and images preserved | ✅ done |
 | **PPT export** — editable text, native chart, native tables | ✅ done |
-| Tests + generated raw-data fixtures | ✅ 328 tests |
+| Tests + generated raw-data fixtures | ✅ 333 tests |
 | Rich Issue Report editor, AI translation provider | ⏳ next sprints |
 | OQC / FIELD structures | ⏳ waiting for the real files |
 

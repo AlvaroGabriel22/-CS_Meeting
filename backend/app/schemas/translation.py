@@ -19,3 +19,13 @@ class TranslationStatusOut(CamelModel):
     default_language: str = "en"
     #: False when no provider is configured — text comes back untranslated
     active: bool = False
+
+
+class GlossaryOut(CamelModel):
+    """The workbook's vocabulary, rendered for one language."""
+
+    language: str
+    #: term as the workbook writes it -> how it reads
+    terms: dict[str, str] = {}
+    #: terms deliberately left alone in every language
+    universal: list[str] = []

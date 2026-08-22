@@ -512,6 +512,8 @@ export interface ChartPoint {
   display: string | null
   /** provenance: the cell the number came from */
   source: string | null
+  /** provenance of a shared number, which no single cell holds (ADR-0046) */
+  derivedFrom?: { whole: string | null; weight: string | null; weightTotal: string | null } | null
 }
 
 export interface ChartSeries {
@@ -530,22 +532,41 @@ export interface ChartOption {
   category: string | null
   subcategory: string | null
   metric: string | null
+  /** `Target` / `Result`, where the row is named by what it is */
+  seriesType?: string | null
 }
 
+/** `components` — the parts of a whole; `pair` — a result against its target. */
+export type ChartShape = 'components' | 'pair'
+
 export interface Chart {
+  /** the chart's own name: the table's, unless one table holds several */
+  id: string
+  kind: ChartShape
   table: string
+  /** the model a pair chart plots */
+  category?: string | null
+  subcategory?: string | null
   /** the name given in the department settings, if any */
   title: string | null
-  metric: string
+  metric: string | null
   sheet: string
   sourceRange: string
   /** true when the bars are the parts of the whole and stack into it */
   stacked: boolean
   /** true when the presenter chose what to plot instead of the default */
   configured: boolean
+  /** false for a chart the workbook offers but the presenter left out */
+  enabled: boolean
+  defaultEnabled: boolean
   periods: Period[]
   bars: ChartSeries[]
   line: ChartSeries | null
+  /** indices where the period axis changes granularity and the line is cut */
+  breaks: number[]
+  /** true when the bars are the whole shared out among its parts (ADR-0046) */
+  shared: boolean
+  share: { whole: string; weight: string } | null
   /** everything this table could plot, for the configuration screen */
   available: ChartOption[]
 }
@@ -672,14 +693,25 @@ export interface UploadedImage {
 export interface ChartSeriesChoice {
   bars: string[]
   line: string | null
+  /** whether the chart is shown at all; null means "as the department decides" */
+  enabled?: boolean | null
 }
 
 export interface DepartmentSettings {
   department: Department
   chartTitles: Record<string, string>
   tableTitles: Record<string, string>
-  /** table name -> the composition chosen for its chart */
+  /** chart id -> the composition chosen for it */
   chartSeries: Record<string, ChartSeriesChoice>
+}
+
+/** The workbook's vocabulary, rendered for one language (ADR-0044). */
+export interface Glossary {
+  language: string
+  /** term as the workbook writes it -> how it reads */
+  terms: Record<string, string>
+  /** terms deliberately left alone in every language */
+  universal: string[]
 }
 
 export interface TranslationStatus {

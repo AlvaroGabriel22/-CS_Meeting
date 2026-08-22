@@ -844,6 +844,8 @@ plain-text report of Sprint 7.
 
 ## ADR-0039 — Authored text is what AI translates, and it is exactly two things
 
+> **Amended by ADR-0044.** Workbook labels are still never sent to a provider — but they are now *rendered* in the reader's language from a curated glossary, which is a table somebody decided rather than a translation asked for.
+
 **Decision (Sprint 9).** The system draws a line between text it *ships* and
 text somebody *typed*, and only the second ever reaches a translation provider.
 
@@ -1035,3 +1037,190 @@ Switching back to the language the report was written in now restores the
 author's own words from memory, without a request; previously it left the last
 translation on screen under the wrong flag, which is the "third time it stops
 translating" a user reported.
+
+---
+
+## ADR-0044 — The workbook's vocabulary is a decided table, not a translation
+
+**Decision (Sprint 9).** Everything on the page now reads in the reader's
+language, including the tables and the chart legends. The workbook's own
+labels get there through a **glossary** — `app/domain/glossary.py` — and never
+through a model:
+
+```
+Total → 누적     Imported → 수입     Rej. Lot → 불량 로트
+IQC   → 부품품질  Local    → 국내     Insp. Lot → 검사 로트
+Aug   → 8월      3Q       → 3분기
+```
+
+Three properties make this the right shape for a factory vocabulary:
+
+* **Decided once.** `Total` is `누적` because the department says so. A model
+  asked the same question twice can answer differently, and a heading that
+  moves between meetings is worse than one in English.
+* **Closed by default.** A term absent from the table is shown exactly as the
+  workbook writes it. `PPM`, `SKD`, `CKD`, `TTL`, `SEC`, `TNP` are listed as
+  universal: they read the same on any floor and inventing a word for them
+  would obscure them.
+* **One table, two surfaces.** The screen fetches it from `GET /api/glossary`
+  and the exporters call `context.term()`, so a deck handed out after the
+  meeting says what the screen said.
+
+**What is still never translated.** Values. A cell of kind `value` does not pass
+through the glossary, in either renderer. The period *labels* do — `Aug` reads
+`8월` — and that is a label carrying a digit, not a number that moved; the
+export test asserts value equality on the model rather than on the extracted
+text, because a PDF dump cannot tell those apart.
+
+**The table also has the last word inside a sentence.** A report title the
+author typed — *"Analise semanal de qualidade - IQC"* — is authored text and
+goes through the engine, but the acronym in it is a *protected term*: it is
+masked before the request and restored verbatim after it, so what comes back is
+guaranteed to be the same three letters. `render_terms()` then replaces it with
+the department's agreed Korean, after the data guard has run, so the title reads
+`주간 품질 분석 - 부품품질` — the same word as the column beside it. This is a
+substitution on text that survived the round trip untouched, never a second
+guess at what the model meant.
+
+**The library reads in the reader's language too.** `GET /api/reports` takes a
+`language`: version labels go through the glossary, and the titles — one per
+report, all of them in a single batched request — go through the translation
+engine, cache first. That is the shape a three-a-minute quota needs (ADR-0042),
+and a title that always changes is exactly the kind of string a table could
+never hold.
+
+**Why this and not the AI.** ADR-0039 kept workbook labels out of every request
+and that still holds: the glossary is applied locally, costs nothing, and
+cannot drift. The AI keeps the job it is actually good at — the report and the
+titles a person typed, which nobody can know in advance.
+
+**Consequences.** Adding a term is one line in one file. The department names
+and the product name live in the interface bundles (`부품품질`, `CS 회의`),
+because they are chrome rather than workbook content.
+
+Two things the change surfaced, neither visible from the API alone:
+
+* **The PDF could not draw Hangul.** ReportLab's built-in faces are Latin, so a
+  Korean export was a grid of empty boxes and nothing reported an error. The
+  renderer now registers the CID face `HYSMyeongJo-Medium` when the export
+  language needs it — no font file to ship, nothing to install on the reader's
+  machine — and a test asserts the terms are actually extractable from the
+  produced file.
+* **The export language was only set when a report existed**, so a snapshot
+  with no report exported its labels in English however it was asked. The
+  language is now the reader's from the start; the report translation is a
+  separate step that may or may not happen.
+
+---
+
+## ADR-0045 — A header row that qualifies a period is not a series axis
+
+**Decision (Sprint 10).** The real FIELD workbook writes a second header row
+under the periods:
+
+```
+        2025 | 2026       | Jan    | … | Jul    | Aug     | Sep | …
+             | Simulation | Result | … | Result | Partial |     |
+```
+
+That row says **how firm each figure is**, not what the column is called and
+not what it measures. Read naively it did two kinds of damage: the column
+called `2026` became `Simulation`, and `Result` was taken for a series axis —
+while FIELD's real Target/Result split lives in the *rows*.
+
+The rule is now explicit and all-or-nothing: a header row is a **series axis**
+only when every one of its non-period tokens is a known series word. One
+`Simulation` in the row is enough to disqualify it, and it is read as a
+**qualifier** instead — kept in `Period.tokens`, drawn in the table exactly
+where the analyst typed it, and ignored by the chart axis.
+
+A period column is also named by its period from now on (`period.label`), never
+by whatever token happens to sit lowest in its header.
+
+**Why all-or-nothing.** A real axis labels its columns consistently; anything
+else is an annotation. Guessing per-token would have let one recognised word
+invent an axis the file does not have.
+
+**The parser is now 1.1.0.** Its reading changed, so stored snapshots are no
+longer what today's parser would produce. Imports are reused by content *and*
+parser version, so the next upload of a file already in the system re-parses it
+instead of handing back the old reading. Existing versions are untouched —
+they are immutable records of what was presented.
+
+---
+
+## ADR-0046 — A rate is stacked by sharing it, not by adding it up
+
+**Decision (Sprint 10).** The IQC chart stacked each part's own PPM. On the
+real workbook the stack reached 30,455 under a total line of 6,629 — five to
+twenty-five times too tall, because **PPM is a rate and rates do not add up**.
+
+What does add up is the count of rejected lots (`SKD + CKD + Local = Total`,
+verified on the file). So each segment is the total PPM *shared out* in that
+proportion:
+
+```
+segment = PPM(total) × Rej. Lot(part) ÷ Rej. Lot(total)
+```
+
+The stack now closes exactly on the line, and each segment reads as the share
+of the total PPM that part is responsible for.
+
+**This is the first arithmetic the system performs**, and it is fenced in:
+
+* it is **declared by the department** (`chart_share=ChartShare(whole="PPM",
+  weight="Rej. Lot")`), never assumed — a department that does not declare one
+  keeps plotting the file's own figures;
+* it refuses rather than approximates: no total row, no weight row, one part
+  missing its weight, or a composition mixing metrics → no sharing;
+* **the table is untouched.** Only the chart shares; every cell on screen and
+  in the exports is still the workbook's;
+* each plotted point carries `derivedFrom: {whole, weight, weightTotal}` — the
+  three addresses it was computed from — so a shared bar can still prove
+  itself, exactly as an unshared one proves its single cell;
+* `Rej. Lot(total) = 0` is a zero, not a gap: nothing was rejected, so no part
+  carries any of it (TNP, August).
+
+**Why not leave it to Excel.** The share is a *drawing* decision — the same
+figures read as a column instead of three unrelated ones. Asking the analyst to
+add three more rows to every table so a chart can be drawn would put layout
+into the source data.
+
+---
+
+## ADR-0047 — The line is cut where the axis changes granularity
+
+**Decision (Sprint 10).** FIELD's period axis is `2025 | 2026 | Jan | Feb | …`:
+two closing years followed by the months of the current one. A line drawn
+straight through it states a trend from a year to a month, which is not a
+thing.
+
+Charts now carry `breaks` — the indices where the period *kind* changes — and
+the line is drawn as separate segments with a seam between them. Inferred from
+the periods the file carries, so a workbook whose axis is all months has no
+break and nothing changes.
+
+Applied to pair charts (FIELD), where the mixed axis is the norm. IQC's line
+runs over `'25 | '26 | 1Q | 2Q | 3Q | Aug` unbroken, as it always has.
+
+---
+
+## ADR-0048 — One table can hold more than one chart
+
+**Decision (Sprint 10).** FIELD is a single table holding four models — `ASR /
+MX`, `ASR / Mobile`, `ASR / APS`, `CASR / Mobile` — each with a Target row and
+a Result row. It is not "parts of a whole", so `chart_kind="series_pair"`
+draws **one chart per model**: the result as bars, the target as the line.
+
+Consequences:
+
+* a chart now has an **`id` of its own** (`MX Field KPI · ASR · MX`), and
+  settings are keyed by it. For a department where a table means exactly one
+  chart the id *is* the table's name, so every setting written before this
+  change still finds its chart;
+* every pair the workbook holds is returned, each saying whether it is
+  `enabled`. The default is the **first model of each category** — the one the
+  sheet leads with — and the rest are one checkbox away in the configuration.
+  Nothing about the file is hidden from the presenter;
+* the department's headline metric stays `None`. FIELD measures nothing it
+  calls a metric: it sets a target and meets it.

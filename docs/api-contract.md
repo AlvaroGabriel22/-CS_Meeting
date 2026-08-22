@@ -370,3 +370,24 @@ POST /api/versions/4/export/pdf
 
 Translating an export translates the report and only the report; the numbers of
 a translated file are identical to an untranslated one, and a test asserts it.
+
+## The glossary (Sprint 9)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/glossary?language=ko` | how the workbook's vocabulary reads |
+
+```json
+{
+  "language": "ko",
+  "terms": { "Total": "누적", "Imported": "수입", "Rej. Lot": "불량 로트",
+             "Aug": "8월", "3Q": "3분기", "IQC": "부품품질" },
+  "universal": ["PPM", "SKD", "CKD", "TTL", "SEC", "TNP", "…"]
+}
+```
+
+A decided table, not a translation (ADR-0044): a term absent from `terms` is
+rendered exactly as the workbook writes it, and the terms in `universal` are
+deliberately left alone in every language. Labels, corners and period headers
+are looked up; **values never are**. The exports read the same table, so a deck
+says what the screen said.

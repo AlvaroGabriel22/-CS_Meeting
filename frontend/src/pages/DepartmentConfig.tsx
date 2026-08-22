@@ -268,15 +268,21 @@ function TitlesPanel({
     await load()
   }
 
-  /** The composition of one chart, defaulting to what it is drawing today. */
+  /** The composition of one chart, defaulting to what it is drawing today.
+   *
+   * Settings written when a table meant exactly one chart are keyed by the
+   * table's name, so both keys are looked up before falling back.
+   */
   const choiceOf = (chart: Chart): ChartSeriesChoice =>
+    (chartSeries ?? {})[chart.id] ??
     (chartSeries ?? {})[chart.table] ?? {
       bars: chart.bars.map((series) => series.key),
       line: chart.line?.key ?? null,
+      enabled: chart.enabled,
     }
 
-  const setChoice = (table: string, choice: ChartSeriesChoice) =>
-    setChartSeries({ ...chartSeries, [table]: choice })
+  const setChoice = (id: string, choice: ChartSeriesChoice) =>
+    setChartSeries({ ...chartSeries, [id]: choice })
 
   return (
     <section className="surface-card space-y-6 p-5">
@@ -286,14 +292,15 @@ function TitlesPanel({
         <h3 className="text-sm font-semibold text-brand-900">{t('config.chartTitles')}</h3>
         {charts.map((chart) => (
           <ChartPanel
-            key={chart.table}
+            key={chart.id}
             chart={chart}
-            title={chartTitles[chart.table] ?? ''}
+            title={chartTitles[chart.id] ?? chartTitles[chart.table] ?? ''}
             choice={choiceOf(chart)}
-            onTitle={(value) => setChartTitles({ ...chartTitles, [chart.table]: value })}
-            onChoice={(choice) => setChoice(chart.table, choice)}
+            onTitle={(value) => setChartTitles({ ...chartTitles, [chart.id]: value })}
+            onChoice={(choice) => setChoice(chart.id, choice)}
             onReset={() => {
               const next = { ...chartSeries }
+              delete next[chart.id]
               delete next[chart.table]
               setChartSeries(next)
             }}
@@ -363,25 +370,46 @@ function ChartPanel({
     onChoice({ ...choice, bars: next })
   }
 
+  // one table can hold several charts, so a panel is named by the model it
+  // plots rather than by the table it came from
+  const name =
+    chart.kind === 'pair'
+      ? [chart.category, chart.subcategory].filter(Boolean).join(' · ') || chart.table
+      : chart.table
+  const shown = choice.enabled ?? chart.enabled
+
   return (
     <article className="rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="font-mono text-xs text-ink-500">{chart.table}</span>
-        {chart.configured && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="text-xs font-medium text-brand-600 hover:text-brand-800"
-          >
-            {t('config.resetChart')}
-          </button>
-        )}
+        <span className="font-mono text-xs text-ink-500">{name}</span>
+        <div className="flex items-center gap-4">
+          {chart.kind === 'pair' && (
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-600">
+              <input
+                type="checkbox"
+                checked={shown}
+                onChange={(event) => onChoice({ ...choice, enabled: event.target.checked })}
+                className="h-3.5 w-3.5"
+              />
+              {t('config.showChart')}
+            </label>
+          )}
+          {chart.configured && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="text-xs font-medium text-brand-600 hover:text-brand-800"
+            >
+              {t('config.resetChart')}
+            </button>
+          )}
+        </div>
       </div>
 
       <input
         value={title}
         onChange={(event) => onTitle(event.target.value)}
-        placeholder={t('config.keepWorkbookName', { name: chart.table })}
+        placeholder={t('config.keepWorkbookName', { name })}
         className="mt-2 w-full rounded-lg border border-line px-3 py-1.5 text-sm outline-none focus:border-brand-400"
       />
 

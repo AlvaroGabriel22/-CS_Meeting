@@ -53,6 +53,15 @@ def iqc_real() -> Path:
 
 
 @pytest.fixture(scope="session")
+def field_real() -> Path:
+    """The real FIELD workbook — MX Field KPI, one table, ASR and CASR."""
+    path = REAL_DIR / "MX_Field.xlsx"
+    if not path.exists():
+        pytest.skip("the real FIELD workbook is not available in tests/fixtures/real/")
+    return path
+
+
+@pytest.fixture(scope="session")
 def iqc_evolution() -> dict[str, Path]:
     """Synthetic IQC workbooks whose period axis evolves month after month."""
     target = _TMP_DATA / "iqc-evolution"

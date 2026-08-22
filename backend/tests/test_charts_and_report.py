@@ -102,20 +102,67 @@ def test_the_periods_are_the_file_s_own_columns(iqc_real: Path) -> None:
         ]
 
 
-def test_every_plotted_number_is_a_number_the_file_holds(iqc_real: Path) -> None:
+def test_every_plotted_number_comes_from_cells_the_file_holds(iqc_real: Path) -> None:
+    """A point is either a cell of the workbook, or a share of three of them.
+
+    The bars of IQC are the total PPM shared out among the parts (ADR-0046), so
+    they are not in any single cell — but every figure that produced them is,
+    and the point says which.  Nothing is plotted that the file cannot account
+    for.
+    """
     expected = _workbook_numbers(iqc_real)
     built = charts.build_charts(_tables(iqc_real), department="IQC")
 
-    plotted = 0
+    plotted = shared = 0
     for chart in built["charts"]:
         for series in chart["bars"] + [chart["line"]]:
             for point in series["points"]:
                 if point["value"] is None:
                     continue
-                assert point["source"], "a plotted point proves its cell"
-                assert point["value"] == pytest.approx(expected[point["source"]])
                 plotted += 1
-    assert plotted > 0
+                if point["source"]:
+                    assert point["value"] == pytest.approx(expected[point["source"]])
+                    continue
+                origin = point["derivedFrom"]
+                whole = expected[origin["whole"]]
+                weight = expected[origin["weight"]]
+                weight_total = expected[origin["weightTotal"]]
+                assert point["value"] == pytest.approx(
+                    whole * weight / weight_total if weight_total else 0.0
+                )
+                shared += 1
+    assert plotted > 0 and shared > 0
+
+
+def test_the_stack_adds_up_to_the_line_it_sits_under(iqc_real: Path) -> None:
+    """The whole point of sharing a rate: the column *is* the total.
+
+    Plotting each part's own PPM built a column many times taller than the
+    total drawn over it, which said nothing.  Shared by rejected lots, the
+    segments close on the line.
+    """
+    for chart in charts.build_charts(_tables(iqc_real), department="IQC")["charts"]:
+        assert chart["shared"] is True
+        assert chart["share"] == {"whole": "PPM", "weight": "Rej. Lot"}
+        for index, point in enumerate(chart["line"]["points"]):
+            parts = [series["points"][index]["value"] for series in chart["bars"]]
+            if point["value"] is None or any(part is None for part in parts):
+                continue
+            assert sum(parts) == pytest.approx(point["value"])
+
+
+def test_a_period_with_nothing_rejected_shares_out_as_zero(iqc_real: Path) -> None:
+    """TNP in August: no rejected lots at all, so no part carries any of it."""
+    chart = next(
+        chart
+        for chart in charts.build_charts(_tables(iqc_real), department="IQC")["charts"]
+        if chart["table"] == "TNP"
+    )
+    august = chart["periods"].index(
+        next(period for period in chart["periods"] if period["label"] == "Aug")
+    )
+    assert chart["line"]["points"][august]["value"] == 0
+    assert [series["points"][august]["value"] for series in chart["bars"]] == [0.0, 0.0, 0.0]
 
 
 def test_a_missing_reading_is_a_gap_never_a_zero(iqc_evolution) -> None:
@@ -144,14 +191,24 @@ def test_the_metric_comes_from_the_file_even_without_a_department(fixture_files)
     assert built["charts"]
 
 
-def test_a_workbook_with_no_metric_at_all_charts_nothing(fixture_files) -> None:
-    """No metric, no chart — and certainly no invented one."""
+def test_a_workbook_with_no_metric_is_charted_by_its_series(fixture_files) -> None:
+    """FIELD measures nothing it calls a metric: it sets a target and meets it.
+
+    So its chart is a pair — the result as bars, the target as the line — and
+    the headline metric stays ``None`` rather than being invented.
+    """
     tables = [
         from_normalized(table, "FIELD")
         for table in parse_file(fixture_files["field_asr_casr.xlsx"], "FIELD").tables
     ]
     built = charts.build_charts(tables, department="FIELD")
-    assert built["metric"] is None and built["charts"] == []
+
+    assert built["metric"] is None
+    assert built["charts"], "a target and a result are enough to draw"
+    for chart in built["charts"]:
+        assert chart["kind"] == "pair"
+        assert [series["label"] for series in chart["bars"]] == ["Result"]
+        assert chart["line"]["label"] == "Target"
 
 
 def test_the_charts_endpoint_serves_the_same_thing(client, iqc_real: Path) -> None:
@@ -471,7 +528,12 @@ def test_a_composition_may_mix_metrics_and_says_which_is_which(
 
 
 def test_the_plotted_values_are_still_the_workbook_s(client, iqc_real: Path) -> None:
-    """Choosing what to draw never changes what it says."""
+    """Choosing what to draw never changes what it says.
+
+    A chosen bar is shared out exactly like a default one — the presenter picks
+    which rows are drawn, never what they are worth — and the line is a cell of
+    the file, untouched.
+    """
     version_id = _upload(client, iqc_real)["versionId"]
     options = _options(client, version_id)
     client.put(
@@ -482,6 +544,19 @@ def test_the_plotted_values_are_still_the_workbook_s(client, iqc_real: Path) -> 
     chart = client.get(f"/api/versions/{version_id}/charts").json()["charts"][0]
     expected = _workbook_numbers(iqc_real)
     for point in chart["bars"][0]["points"]:
+        if point["value"] is None:
+            continue
+        origin = point["derivedFrom"]
+        weight_total = expected[origin["weightTotal"]]
+        assert point["value"] == pytest.approx(
+            expected[origin["whole"]] * expected[origin["weight"]] / weight_total
+            if weight_total
+            else 0.0
+        )
+    # the table next to it was not configured, and its line is a cell of the
+    # file, read straight off the workbook
+    untouched = client.get(f"/api/versions/{version_id}/charts").json()["charts"][1]
+    for point in untouched["line"]["points"]:
         if point["value"] is not None:
             assert point["value"] == pytest.approx(expected[point["source"]])
 
@@ -513,3 +588,88 @@ def test_only_the_table_that_was_configured_changes(client, iqc_real: Path) -> N
     assert charts_out[0]["configured"] is True
     assert charts_out[1]["configured"] is False  # SEC keeps the default
     assert [s["label"] for s in charts_out[1]["bars"]] == ["SKD", "CKD", "Local"]
+
+
+def test_the_library_renders_titles_and_terms_for_the_reader(
+    client, iqc_real: Path, monkeypatch
+) -> None:
+    """A report title is authored text; the period beside it is a decided term."""
+    from app.services.translation.provider import (
+        TranslationRequest,
+        TranslationResult,
+        register_provider,
+    )
+
+    class Prefixing:
+        name = "library-fake"
+        requests_per_minute = 0
+        max_batch = 50
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def translate(self, request: TranslationRequest) -> TranslationResult:
+            self.calls += 1
+            return TranslationResult(
+                segments=[f"[ko] {segment}" for segment in request.segments],
+                provider=self.name,
+                model="fake",
+            )
+
+    provider = Prefixing()
+    register_provider(provider)
+    monkeypatch.setattr(
+        "app.services.translation.service.get_provider", lambda name=None: provider
+    )
+
+    version_id = _upload(client, iqc_real)["versionId"]
+    client.put(
+        f"/api/versions/{version_id}/report",
+        json={"content": {"title": "Analise semanal - IQC", "columns": [], "rows": []},
+              "language": "pt-BR"},
+    )
+
+    listed = client.get("/api/reports", params={"language": "ko"}).json()
+    mine = next(item for item in listed if item["versionId"] == version_id)
+
+    # authored words through the engine, the department through the glossary:
+    # the acronym is masked during translation, so putting the agreed Korean in
+    # its place afterwards is a substitution, not a guess
+    assert mine["title"] == "[ko] Analise semanal - 부품품질"
+    assert mine["versionLabel"] == "8월"              # decided: through the glossary
+    assert provider.calls == 1, "every title in one request, not one each"
+
+
+def test_the_library_in_the_report_s_own_language_asks_nothing(
+    client, iqc_real: Path, monkeypatch
+) -> None:
+    from app.services.translation.provider import TranslationResult, register_provider
+
+    class Counting:
+        name = "counting-fake"
+        requests_per_minute = 0
+        max_batch = 50
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def translate(self, request):
+            self.calls += 1
+            return TranslationResult(segments=list(request.segments), provider=self.name)
+
+    provider = Counting()
+    register_provider(provider)
+    monkeypatch.setattr(
+        "app.services.translation.service.get_provider", lambda name=None: provider
+    )
+
+    version_id = _upload(client, iqc_real)["versionId"]
+    client.put(
+        f"/api/versions/{version_id}/report",
+        json={"content": {"title": "Analise semanal", "columns": [], "rows": []},
+              "language": "pt-BR"},
+    )
+
+    listed = client.get("/api/reports", params={"language": "pt-BR"}).json()
+    assert next(item for item in listed if item["versionId"] == version_id)["title"] == "Analise semanal"
+    assert provider.calls == 0

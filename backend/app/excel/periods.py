@@ -217,27 +217,38 @@ def match_token_in_row(token: str, row_kind: PeriodKind | None) -> PeriodFacets 
 def build_period(
     header_path: Sequence[str],
     row_kinds: Sequence[PeriodKind | None] | None = None,
+    series_rows: Sequence[bool] | None = None,
 ) -> tuple[Period | None, str | None]:
     """Combine a column's header tokens into ``(period, series)``.
 
     ``header_path`` is the top-down list of header cells above one column, e.g.
     ``("2026", "Aug", "W32", "Target")`` -> week 32 of Aug/2026, series Target.
+
+    ``series_rows`` says which header rows actually split the columns into
+    series.  A header row can carry a word like ``Result`` without being a
+    series axis at all — the FIELD sheet writes ``Simulation / Result /
+    Partial`` under the periods to say how firm each figure is, while the real
+    Target/Result split lives in the rows.  Reading that row as a series axis
+    would invent a second one, so the caller decides and this function obeys
+    (ADR-0045).
     """
     kinds = list(row_kinds or [None] * len(header_path))
     kinds += [None] * (len(header_path) - len(kinds))
+    allows_series = list(series_rows if series_rows is not None else [True] * len(header_path))
+    allows_series += [True] * (len(header_path) - len(allows_series))
 
     year = quarter = month = week = day = None
     finest = PeriodKind.UNKNOWN
     labels: list[str] = []
     series: str | None = None
 
-    for token, row_kind in zip(header_path, kinds):
+    for index, (token, row_kind) in enumerate(zip(header_path, kinds)):
         token = str(token).strip()
         if not token:
             continue
         facets = match_token_in_row(token, row_kind)
         if facets is None:
-            if name := match_series(token):
+            if allows_series[index] and (name := match_series(token)):
                 series = name
             continue
         labels.append(token)

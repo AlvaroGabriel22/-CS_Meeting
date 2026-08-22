@@ -29,6 +29,9 @@ class ChartPointOut(CamelModel):
     display: str | None = None
     #: provenance: the cell the number came from
     source: str | None = None
+    #: provenance of a shared number, which no single cell holds: the whole,
+    #: this part's weight and the total weight it was measured against
+    derived_from: dict[str, str | None] | None = None
 
 
 class ChartSeriesOut(CamelModel):
@@ -48,24 +51,41 @@ class ChartOptionOut(CamelModel):
     category: str | None = None
     subcategory: str | None = None
     metric: str | None = None
+    #: ``Target`` / ``Result`` where the row is named by what it is
+    series_type: str | None = None
 
 
 class ChartOut(CamelModel):
-    """One table's chart: its parts as bars, its total as a line."""
+    """One chart: bars for the parts (or the outcome), a line over them."""
 
+    #: the chart's own name — the table's, unless one table holds several
+    id: str
+    #: ``components`` (parts of a whole) or ``pair`` (result against target)
+    kind: str = "components"
     table: str
+    #: the model a pair chart plots, when the table holds more than one
+    category: str | None = None
+    subcategory: str | None = None
     #: the name the user gave it in the settings, if any
     title: str | None = None
-    metric: str
+    metric: str | None = None
     sheet: str
     source_range: str
     #: True when the bars are the parts of the whole and stack into it
     stacked: bool = False
     #: True when the presenter chose what to plot instead of the default
     configured: bool = False
+    #: False for a chart the workbook offers but the presenter left out
+    enabled: bool = True
+    default_enabled: bool = True
     periods: list[PeriodOut] = []
     bars: list[ChartSeriesOut] = []
     line: ChartSeriesOut | None = None
+    #: indices where the period axis changes granularity and the line is cut
+    breaks: list[int] = []
+    #: True when the bars are the whole shared out among its parts (ADR-0046)
+    shared: bool = False
+    share: dict[str, str] | None = None
     #: everything this table could plot, for the configuration screen
     available: list[ChartOptionOut] = []
 
@@ -205,10 +225,16 @@ class ReportSummaryOut(CamelModel):
 # Settings
 # --------------------------------------------------------------------------- #
 class ChartSeriesChoiceOut(CamelModel):
-    """What one chart plots, when the presenter chose it."""
+    """What one chart plots, when the presenter chose it.
+
+    ``enabled`` is the other half of the choice: a workbook can offer more
+    charts than a meeting wants to see, so a chart can be switched off without
+    losing what it plots.  ``None`` means "as the department decides".
+    """
 
     bars: list[str] = []
     line: str | None = None
+    enabled: bool | None = None
 
 
 class DepartmentSettingsOut(CamelModel):
@@ -217,7 +243,7 @@ class DepartmentSettingsOut(CamelModel):
     department: str
     chart_titles: dict[str, str] = {}
     table_titles: dict[str, str] = {}
-    #: table name -> the composition chosen for its chart (ADR-0041)
+    #: chart id -> the composition chosen for it (ADR-0041)
     chart_series: dict[str, ChartSeriesChoiceOut] = {}
 
 

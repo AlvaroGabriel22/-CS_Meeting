@@ -19,7 +19,7 @@ how often the system may ask it.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Translation
 from app.domain.departments import protected_terms, schema_for
+from app.domain.glossary import render_terms
 
 from . import documents
 from .limits import RateLimiter, call_with_retry, chunked
@@ -259,7 +260,15 @@ class TranslationService:
                 result.provider,
             )
 
-        outcome.entries = [results[text] for text in unique]
+        # the decided vocabulary has the last word: a term that survived the
+        # round trip verbatim is rendered the way the department agreed, so a
+        # title reads in Korean all the way through (ADR-0044)
+        outcome.entries = [
+            replace(entry, translated=render_terms(entry.translated, terms, target_language))
+            if entry.translatable and not entry.rejected
+            else entry
+            for entry in (results[text] for text in unique)
+        ]
         return outcome
 
     # -- main entry point --------------------------------------------------- #

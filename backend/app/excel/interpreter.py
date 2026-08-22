@@ -231,6 +231,28 @@ def _corner_table_name(
     return text if (c2 - c1 + 1) >= label_cols else None
 
 
+
+def _is_series_row(values: list[str], row_kind: P.PeriodKind | None) -> bool:
+    """True when a header row really splits the columns into series.
+
+    ``Target | Result | Target | Result`` under the months is a series axis.
+    ``Simulation | Result | Result | Partial`` is not: two of those words name
+    nothing the system knows, which is what a *qualifier* looks like — a note
+    about how firm each period's figure is.  The rule is all-or-nothing on
+    purpose: a real axis labels its columns consistently, and anything else is
+    read as an annotation and left in the table where the analyst wrote it
+    (ADR-0045).
+    """
+    tokens = [
+        text
+        for text in (str(value).strip() for value in values)
+        if text and P.match_token_in_row(text, row_kind) is None
+    ]
+    if not tokens:
+        return False
+    return all(P.match_series(token) for token in tokens)
+
+
 def interpret_region(
     sheet: RawSheet, rect: Rect, schema: DepartmentSchema | None = None
 ) -> TableInterpretation:
@@ -256,6 +278,9 @@ def interpret_region(
         _header_row_values(sheet, first_row + i, rect.c1, rect.c2) for i in range(header_rows)
     ]
     row_kinds = [P.row_period_kind(row[label_cols:]) for row in header_values]
+    series_rows = [
+        _is_series_row(row[label_cols:], kind) for row, kind in zip(header_values, row_kinds)
+    ]
 
     # ---------------- columns --------------------------------------------- #
     for offset, col in enumerate(range(rect.c1, rect.c2 + 1)):
@@ -264,7 +289,7 @@ def interpret_region(
         period, series_type = (None, None)
         if not is_label and header_rows:
             period, series_type = P.build_period(
-                [row[offset] for row in header_values], row_kinds
+                [row[offset] for row in header_values], row_kinds, series_rows
             )
         if is_label:
             semantic = SemanticType.LABEL
@@ -279,7 +304,14 @@ def interpret_region(
                 index=offset,
                 source_column=get_column_letter(col),
                 header_path=header_path,
-                label=header_path[-1] if header_path else get_column_letter(col),
+                # a period column is named by its period: the header may also
+                # carry a qualifier (``Simulation``), and that word names the
+                # figure's firmness, not the column
+                label=(
+                    period.label
+                    if period and period.label
+                    else (header_path[-1] if header_path else get_column_letter(col))
+                ),
                 period=period,
                 series_type=series_type,
                 semantic=semantic,

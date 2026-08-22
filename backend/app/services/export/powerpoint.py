@@ -94,14 +94,17 @@ def _charts_slide(presentation: Presentation, context: ExportContext) -> None:
 
     width = int((SLIDE_WIDTH - 2 * MARGIN) / max(len(context.charts), 1))
     for index, chart in enumerate(context.charts):
-        labels = [period["label"] for period in chart["periods"]]
+        labels = [context.term(period["label"]) for period in chart["periods"]]
         data = CategoryChartData()
         data.categories = labels
         for series in chart["bars"]:
-            data.add_series(series["label"], [point["value"] for point in series["points"]])
+            data.add_series(
+                context.term(series["label"]), [point["value"] for point in series["points"]]
+            )
         if chart.get("line"):
             data.add_series(
-                chart["line"]["label"], [point["value"] for point in chart["line"]["points"]]
+                context.term(chart["line"]["label"]),
+                [point["value"] for point in chart["line"]["points"]],
             )
 
         frame = slide.shapes.add_chart(
@@ -125,7 +128,8 @@ def _charts_slide(presentation: Presentation, context: ExportContext) -> None:
             )
             _write(
                 title,
-                f"{chart.get('title') or chart['table']} · line: {chart['line']['label']}",
+                f"{chart.get('title') or chart['table']} · line: "
+                f"{context.term(chart['line']['label'])}",
                 size=9,
                 color=MUTED,
                 first=True,
@@ -168,7 +172,11 @@ def _table_slides(presentation: Presentation, context: ExportContext) -> None:
                             cell["col"] + cell["colSpan"] - 1,
                         )
                     )
-                target.text = cell["text"] or (cell["inferredText"] or "")
+                text = cell["text"] or (cell["inferredText"] or "")
+                if cell["kind"] in ("label", "corner", "period"):
+                    # the workbook's vocabulary, rendered for the reader
+                    text = context.term(text)
+                target.text = text
                 paragraph = target.text_frame.paragraphs[0]
                 paragraph.alignment = None
                 for run in paragraph.runs:

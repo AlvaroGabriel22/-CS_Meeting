@@ -5,8 +5,9 @@ context: the three charts, the three tables and the report the author wrote
 (ADR-0030, ADR-0036).
 
 Translation reaches the file the same way it reaches the screen: the report is
-looked up in the overlay, and nothing else is (ADR-0035).  A translated export
-therefore holds exactly the numbers of an untranslated one.
+looked up in the overlay (ADR-0035) and the workbook's own vocabulary in the
+glossary (ADR-0044).  Numbers are in neither, so a translated export holds
+exactly the numbers of an untranslated one.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import Department, DepartmentSettings, PresentationVersion
+from app.domain.glossary import translate_term
 from app.schemas.table import TableOut
 from app.services import assets, charts, presentation_service, reports, serializers
 from app.services.render_model import build_table_view
@@ -45,6 +47,14 @@ class ExportContext:
     report_images: dict[int, str] = field(default_factory=dict)
     language: str = "en"
     generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def term(self, text: str | None) -> str:
+        """A workbook label, rendered for the reader (ADR-0044).
+
+        A curated table, not a translation: a term is either in it or it is
+        shown exactly as the workbook writes it.  Values never pass through.
+        """
+        return translate_term(text, self.language)
 
     @property
     def title(self) -> str:
@@ -85,6 +95,9 @@ def build_context(
         version_number=version.number,
         version_label=version.label,
         raw_file=(version.summary or {}).get("rawFile"),
+        # the language is the reader's, whether or not a report exists: the
+        # glossary renders the workbook's own labels either way (ADR-0044)
+        language=language or "en",
     )
 
     settings = session.scalars(
@@ -101,8 +114,16 @@ def build_context(
         )
         context.metric = built["metric"]
         context.charts = [
-            {**chart, "title": chart_titles.get(chart["table"]) or chart["table"]}
+            {
+                **chart,
+                # settings made when a table meant one chart are keyed by the
+                # table's name; a chart of its own keeps its own key
+                "title": chart_titles.get(chart["id"])
+                or chart_titles.get(chart["table"])
+                or _chart_name(chart),
+            }
             for chart in built["charts"]
+            if chart.get("enabled", True)
         ]
 
     if include_tables:
@@ -118,8 +139,9 @@ def build_context(
         content = report.content or reports.empty_content()
 
         if translate and language and language != report.language:
-            # only the report is translated — the rest of the page is interface
-            # text and workbook labels, which never leave the process (ADR-0036)
+            # only the report goes to a provider — the rest of the page is
+            # interface text and workbook labels, which never leave the
+            # process (ADR-0036, ADR-0044)
             outcome = TranslationService().translate_texts(
                 session,
                 reports.translatable_strings(content),
@@ -128,7 +150,6 @@ def build_context(
                 department=department,
             )
             content = reports.apply_translation(content, outcome.mapping)
-            context.language = language
 
         context.report = content
         for media in report.media:
@@ -146,3 +167,9 @@ def build_context(
         context.language,
     )
     return context
+
+
+def _chart_name(chart: dict) -> str:
+    """What to call a chart nobody has named: the model it plots."""
+    parts = [chart.get("category"), chart.get("subcategory")]
+    return " · ".join(part for part in parts if part) or chart["table"]

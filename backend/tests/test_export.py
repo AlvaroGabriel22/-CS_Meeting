@@ -316,8 +316,38 @@ def test_a_translated_export_keeps_every_number(client, iqc_real: Path, tmp_path
     _b, translated_text = _pdf_text(translated, tmp_path / "translated")
 
     assert "KO " in translated_text, "the report followed the language"
-    numbers = re.compile(r"\d[\d,.]*")
-    assert numbers.findall(plain_text) == numbers.findall(translated_text)
+    assert "KO " not in plain_text
+
+    # Every value survives the language change untouched.  Asserted on the
+    # context rather than on the extracted text, because the *digits* of the
+    # two documents are legitimately different: a localised period reads
+    # "8월", which is a label carrying a digit, not a number that moved
+    # (ADR-0044).  A PDF text dump cannot tell those apart; the model can.
+    from app.db.base import SessionLocal
+    from app.services.export import context as export_context
+
+    session = SessionLocal()
+    try:
+        plain_ctx = export_context.build_context(session, version_id=version)
+        korean_ctx = export_context.build_context(
+            session, version_id=version, language="ko", translate=True
+        )
+    finally:
+        session.close()
+
+    def values_of(ctx):
+        return [
+            cell["value"]
+            for view in ctx.tables
+            for row in view["rows"]
+            for cell in row["cells"]
+            if cell["kind"] == "value"
+        ]
+
+    assert values_of(plain_ctx), "the tables carry values in the first place"
+    assert values_of(plain_ctx) == values_of(korean_ctx)
+    # and the labels did change, or the glossary would not be doing anything
+    assert korean_ctx.term("Total") == "누적"
 
 
 def test_exporting_twice_does_not_reuse_a_stale_file(client, iqc_evolution, tmp_path: Path) -> None:
@@ -331,3 +361,20 @@ def test_exporting_twice_does_not_reuse_a_stale_file(client, iqc_evolution, tmp_
         client.post(f"/api/versions/{second}/export/pdf", json={}).content, tmp_path / "b"
     )
     assert text_a != text_b
+
+
+def test_a_korean_export_can_actually_draw_korean(client, iqc_real: Path, tmp_path: Path) -> None:
+    """The built-in PDF fonts have no Hangul: without a CJK face the page is
+    a grid of empty boxes, and nothing in the API would say so (ADR-0044)."""
+    version = _upload(client, iqc_real)["versionId"]
+    _pages, text = _pdf_text(
+        client.post(
+            f"/api/versions/{version}/export/pdf", json={"language": "ko", "translate": True}
+        ).content,
+        tmp_path,
+    )
+
+    for term in ("누적", "불량 로트", "검사 로트", "수입", "국내", "8월", "3분기"):
+        assert term in text, term
+    # the workbook's untranslatable vocabulary is still itself
+    assert "SKD" in text and "PPM" in text

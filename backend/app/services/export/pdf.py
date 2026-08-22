@@ -29,6 +29,9 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.lib.fonts import addMapping
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import (
     Image,
     PageBreak,
@@ -57,26 +60,62 @@ PALETTE = [
     colors.HexColor("#C7D9EF"),
 ]
 LINE_COLOR = colors.HexColor("#B3382F")
+#: a pair chart: closing years, the months of this one, and the target line
+YEAR_BAR = colors.HexColor("#1E3A5F")
+MONTH_BAR = colors.HexColor("#9DBADD")
+TARGET_LINE = colors.HexColor("#4A7FBF")
 
 PAGE = landscape(A4)
 CONTENT_WIDTH = PAGE[0] - 30 * mm
 
+#: The built-in PDF fonts have no Hangul: a Korean export written in Helvetica
+#: is a page of empty boxes.  ReportLab ships CID fonts for exactly this, so the
+#: file stays small and needs nothing installed on the reader's machine.
+CJK_FONTS = {"ko": "HYSMyeongJo-Medium"}
+_registered: set[str] = set()
 
-def _styles() -> dict[str, ParagraphStyle]:
+
+def _font_for(language: str | None) -> str:
+    """The typeface that can actually draw this language."""
+    name = CJK_FONTS.get(language or "")
+    if name is None:
+        return "Helvetica"
+    if name not in _registered:
+        pdfmetrics.registerFont(UnicodeCIDFont(name))
+        # the face has no bold cut; map bold and italic onto it so <b> in a
+        # paragraph renders text rather than falling back to a Latin font
+        for bold in (0, 1):
+            for italic in (0, 1):
+                addMapping(name, bold, italic, name)
+        _registered.add(name)
+    return name
+
+
+def _styles(font: str = "Helvetica") -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()
+    bold = "Helvetica-Bold" if font == "Helvetica" else font
     return {
         "title": ParagraphStyle(
-            "title", parent=base["Title"], textColor=BRAND, fontSize=20, alignment=TA_LEFT
+            "title", parent=base["Title"], textColor=BRAND, fontSize=20,
+            alignment=TA_LEFT, fontName=bold,
         ),
-        "subtitle": ParagraphStyle("subtitle", parent=base["Normal"], textColor=MUTED, fontSize=10),
+        "subtitle": ParagraphStyle(
+            "subtitle", parent=base["Normal"], textColor=MUTED, fontSize=10, fontName=font
+        ),
         "heading": ParagraphStyle(
-            "heading", parent=base["Heading2"], textColor=BRAND, fontSize=13, spaceBefore=10
+            "heading", parent=base["Heading2"], textColor=BRAND, fontSize=13,
+            spaceBefore=10, fontName=bold,
         ),
         "block_title": ParagraphStyle(
-            "block_title", parent=base["Normal"], textColor=BRAND, fontSize=11, spaceAfter=2
+            "block_title", parent=base["Normal"], textColor=BRAND, fontSize=11,
+            spaceAfter=2, fontName=bold,
         ),
-        "body": ParagraphStyle("body", parent=base["Normal"], textColor=INK, fontSize=10, leading=14),
-        "small": ParagraphStyle("small", parent=base["Normal"], textColor=MUTED, fontSize=7.5),
+        "body": ParagraphStyle(
+            "body", parent=base["Normal"], textColor=INK, fontSize=10, leading=14, fontName=font
+        ),
+        "small": ParagraphStyle(
+            "small", parent=base["Normal"], textColor=MUTED, fontSize=7.5, fontName=font
+        ),
     }
 
 
@@ -101,10 +140,50 @@ def _header(context: ExportContext, styles: dict[str, ParagraphStyle]) -> list[A
     ]
 
 
-def _one_chart(chart: dict[str, Any], width: float, height: float) -> Drawing:
+
+
+def _value_range(chart: dict[str, Any]) -> tuple[float, float]:
+    """The scale every layer of one drawing is measured against.
+
+    A stacked column is as tall as its parts together, so that is what the
+    range has to hold; a grouped one is as tall as its tallest part.
+    """
+    columns = len(chart["periods"])
+    bars = [[point["value"] for point in series["points"]] for series in chart["bars"]]
+    heights: list[float] = []
+    for index in range(columns):
+        values = [row[index] for row in bars if index < len(row) and row[index] is not None]
+        if not values:
+            continue
+        heights.append(sum(values) if chart.get("stacked") else max(values))
+    if chart.get("line"):
+        heights.extend(
+            point["value"] for point in chart["line"]["points"] if point["value"] is not None
+        )
+    if not heights:
+        return 0.0, 1.0
+    high = max(heights)
+    low = min(0.0, min(heights))
+    return low, (high * 1.08 if high > 0 else 1.0)
+
+def _blocks(breaks: list[int], length: int) -> list[tuple[int, int]]:
+    """The index ranges a line is drawn in, split at every break."""
+    edges = [0, *[index for index in breaks if 0 < index < length], length]
+    return [(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
+
+def _one_chart(
+    chart: dict[str, Any], width: float, height: float, context: ExportContext | None = None
+) -> Drawing:
     """One table's chart: vertical bars per category, with the line over them."""
-    labels = [period["label"] for period in chart["periods"]]
+    term = context.term if context else (lambda value: value or "")
+    font = _font_for(context.language if context else None)
+    labels = [term(period["label"]) for period in chart["periods"]]
     drawing = Drawing(width, height)
+
+    # every layer of this drawing must be measured against the same scale: the
+    # bar chart and the line charts each compute their own otherwise, and a
+    # line drawn to a different range says something the numbers do not
+    low, high = _value_range(chart)
 
     bars = VerticalBarChart()
     bars.x = 26
@@ -113,34 +192,62 @@ def _one_chart(chart: dict[str, Any], width: float, height: float) -> Drawing:
     bars.height = max(height - 48, 40)
     bars.data = [[point["value"] for point in series["points"]] for series in chart["bars"]] or [[]]
     bars.categoryAxis.categoryNames = labels
+    bars.valueAxis.valueMin, bars.valueAxis.valueMax = low, high
     bars.categoryAxis.labels.fontSize = 6
+    bars.categoryAxis.labels.fontName = font
     bars.valueAxis.labels.fontSize = 6
+    bars.valueAxis.labels.fontName = font
     bars.barSpacing = 0.5
     bars.groupSpacing = 6
+    # the parts of a whole are drawn on top of each other, exactly as on screen
+    if chart.get("stacked"):
+        bars.categoryAxis.style = "stacked"
     for index in range(len(bars.data)):
         bars.bars[index].fillColor = PALETTE[index % len(PALETTE)]
         bars.bars[index].strokeColor = None
+    # a pair chart separates the closing years from the months of this one by
+    # colour, the same way the page does
+    if chart.get("kind") == "pair":
+        for column, period in enumerate(chart["periods"]):
+            for index in range(len(bars.data)):
+                bars.bars[(index, column)].fillColor = (
+                    YEAR_BAR if period.get("kind") == "year" else MONTH_BAR
+                )
     drawing.add(bars)
 
     if chart.get("line"):
-        line = HorizontalLineChart()
-        line.x, line.y = bars.x, bars.y
-        line.width, line.height = bars.width, bars.height
-        line.data = [[point["value"] for point in chart["line"]["points"]]]
-        line.categoryAxis.visible = False
-        line.valueAxis.visible = False
-        line.lines[0].strokeColor = LINE_COLOR
-        line.lines[0].strokeWidth = 1.4
-        drawing.add(line)
+        values = [point["value"] for point in chart["line"]["points"]]
+        # one line per block, each blank outside its own: same categories, so
+        # everything stays under the bars it belongs to, and nothing is drawn
+        # across the seam where years become months (ADR-0047)
+        for start, end in _blocks(chart.get("breaks") or [], len(values)):
+            line = HorizontalLineChart()
+            line.x, line.y = bars.x, bars.y
+            line.width, line.height = bars.width, bars.height
+            line.data = [
+                [value if start <= index < end else None for index, value in enumerate(values)]
+            ]
+            line.categoryAxis.visible = False
+            line.valueAxis.visible = False
+            line.valueAxis.valueMin, line.valueAxis.valueMax = low, high
+            line.lines[0].strokeColor = TARGET_LINE if chart.get("kind") == "pair" else LINE_COLOR
+            line.lines[0].strokeWidth = 1.4
+            drawing.add(line)
 
-    legend = [series["label"] for series in chart["bars"]]
+    is_pair = chart.get("kind") == "pair"
+    legend = [term(series["label"]) for series in chart["bars"]]
     if chart.get("line"):
-        legend.append(chart["line"]["label"])
+        legend.append(term(chart["line"]["label"]))
     step = width / max(len(legend), 1)
     for index, label in enumerate(legend):
         is_line = chart.get("line") and index == len(legend) - 1
-        colour = LINE_COLOR if is_line else PALETTE[index % len(PALETTE)]
-        drawing.add(String(26 + index * step, 8, label[:16], fontSize=6.5, fillColor=colour))
+        if is_line:
+            colour = TARGET_LINE if is_pair else LINE_COLOR
+        else:
+            colour = YEAR_BAR if is_pair else PALETTE[index % len(PALETTE)]
+        drawing.add(
+            String(26 + index * step, 8, label[:16], fontSize=6.5, fillColor=colour, fontName=font)
+        )
     return drawing
 
 
@@ -152,10 +259,14 @@ def _charts_block(context: ExportContext, styles: dict[str, ParagraphStyle]) -> 
     cells = [
         [
             Paragraph(
-                f"{chart.get('title') or chart['table']} · {chart['metric']}",
+                " · ".join(
+                    part
+                    for part in (chart.get("title") or chart["table"], chart.get("metric"))
+                    if part
+                ),
                 styles["block_title"],
             ),
-            _one_chart(chart, width - 6 * mm, 72 * mm),
+            _one_chart(chart, width - 6 * mm, 72 * mm, context),
         ]
         for chart in context.charts
     ]
@@ -166,8 +277,15 @@ def _charts_block(context: ExportContext, styles: dict[str, ParagraphStyle]) -> 
     return [table, Spacer(1, 4 * mm)]
 
 
-def _grid(view: dict[str, Any], styles: dict[str, ParagraphStyle]) -> tuple[list[list[Any]], list[Any]]:
-    """The render model, turned into a ReportLab grid with its spans."""
+def _grid(
+    view: dict[str, Any],
+    styles: dict[str, ParagraphStyle],
+    context: ExportContext | None = None,
+) -> tuple[list[list[Any]], list[Any]]:
+    """The render model, turned into a ReportLab grid with its spans.
+
+    Labels and period headers go through the glossary; a value never does.
+    """
     rows: list[list[Any]] = [
         ["" for _ in range(view["columnCount"])] for _ in range(view["rowCount"])
     ]
@@ -175,6 +293,8 @@ def _grid(view: dict[str, Any], styles: dict[str, ParagraphStyle]) -> tuple[list
     for row in view["rows"]:
         for cell in row["cells"]:
             text = cell["text"] or (cell["inferredText"] or "")
+            if context is not None and cell["kind"] in ("label", "corner", "period"):
+                text = context.term(text)
             rows[cell["row"]][cell["col"]] = Paragraph(
                 f"<b>{text}</b>" if cell["bold"] or cell["isHeadline"] else text, styles["small"]
             )
@@ -189,8 +309,13 @@ def _grid(view: dict[str, Any], styles: dict[str, ParagraphStyle]) -> tuple[list
     return rows, spans
 
 
-def _one_table(view: dict[str, Any], styles: dict[str, ParagraphStyle], width: float) -> Any:
-    rows, spans = _grid(view, styles)
+def _one_table(
+    view: dict[str, Any],
+    styles: dict[str, ParagraphStyle],
+    width: float,
+    context: ExportContext | None = None,
+) -> Any:
+    rows, spans = _grid(view, styles, context)
     if not rows:
         return Paragraph("", styles["small"])
     columns = view["columnCount"]
@@ -202,6 +327,7 @@ def _one_table(view: dict[str, Any], styles: dict[str, ParagraphStyle], width: f
     table = Table(rows, colWidths=widths, repeatRows=view["headerRowCount"])
     style = [
         ("GRID", (0, 0), (-1, -1), 0.3, LINE),
+        ("FONTNAME", (0, 0), (-1, -1), styles["small"].fontName),
         ("BACKGROUND", (0, 0), (-1, view["headerRowCount"] - 1), BRAND_LIGHT),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("FONTSIZE", (0, 0), (-1, -1), 5.5),
@@ -223,7 +349,7 @@ def _tables_block(context: ExportContext, styles: dict[str, ParagraphStyle]) -> 
     cells = [
         [
             Paragraph(view["title"] or view["sheet"], styles["block_title"]),
-            _one_table(view, styles, width - 4 * mm),
+            _one_table(view, styles, width - 4 * mm, context),
         ]
         for view in context.tables
     ]
@@ -258,7 +384,9 @@ def _cell_flowables(
                     block.get("size"), 9.5
                 ),
                 leading=14,
-                fontName="Helvetica-Bold" if block.get("bold") else "Helvetica",
+                fontName=styles["body"].fontName
+                if not block.get("bold")
+                else styles["heading"].fontName,
             )
             text = (block.get("text") or "").replace("\n", "<br/>")
             if block.get("italic"):
@@ -354,6 +482,7 @@ def _report_block(context: ExportContext, styles: dict[str, ParagraphStyle]) -> 
         TableStyle(
             [
                 ("GRID", (0, 0), (-1, -1), 0.4, LINE),
+                ("FONTNAME", (0, 0), (-1, -1), styles["body"].fontName),
                 ("BACKGROUND", (0, 0), (-1, 0), BRAND_LIGHT),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
@@ -369,7 +498,7 @@ def _report_block(context: ExportContext, styles: dict[str, ParagraphStyle]) -> 
 
 def _decorate(canvas: Any, doc: Any, context: ExportContext) -> None:
     canvas.saveState()
-    canvas.setFont("Helvetica", 7.5)
+    canvas.setFont(_font_for(context.language), 7.5)
     canvas.setFillColor(MUTED)
     canvas.drawString(15 * mm, 9 * mm, f"{context.department} · {context.subtitle} · CS Meeting")
     canvas.drawRightString(PAGE[0] - 15 * mm, 9 * mm, f"page {doc.page}")
@@ -378,7 +507,7 @@ def _decorate(canvas: Any, doc: Any, context: ExportContext) -> None:
 
 def render_pdf(context: ExportContext, path: Path) -> Path:
     """Write the department page to ``path``."""
-    styles = _styles()
+    styles = _styles(_font_for(context.language))
     document = SimpleDocTemplate(
         str(path),
         pagesize=PAGE,

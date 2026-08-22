@@ -654,3 +654,46 @@ def test_an_openai_compatible_engine_declares_its_quota() -> None:
     assert engine.requests_per_minute == 3
     assert engine.model == "gpt-4o-mini"
     assert engine.max_batch >= 10  # a tight quota needs a generous batch
+
+
+# --------------------------------------------------------------------------- #
+# The workbook's vocabulary — a decided table, never a guess (ADR-0044)
+# --------------------------------------------------------------------------- #
+def test_the_glossary_renders_the_terms_the_department_decided(client) -> None:
+    body = client.get("/api/glossary", params={"language": "ko"}).json()
+
+    assert body["terms"]["Total"] == "누적"
+    assert body["terms"]["IQC"] == "부품품질"
+    assert body["terms"]["OQC"] == "출하품질"
+    assert body["terms"]["FIELD"] == "시장품질"
+    assert body["terms"]["Aug"] == "8월"
+    assert body["terms"]["3Q"] == "3분기"
+
+
+def test_a_term_nobody_decided_on_is_left_alone(client) -> None:
+    """Better the workbook's own word than an invented one."""
+    from app.domain.glossary import translate_term
+
+    body = client.get("/api/glossary", params={"language": "ko"}).json()
+    for universal in ("PPM", "SKD", "CKD", "TTL"):
+        assert universal not in body["terms"]
+        assert translate_term(universal, "ko") == universal
+    assert translate_term("Whatever the file says", "ko") == "Whatever the file says"
+
+
+def test_a_language_with_no_table_changes_nothing(client) -> None:
+    from app.domain.glossary import translate_term
+
+    assert client.get("/api/glossary", params={"language": "en"}).json()["terms"] == {}
+    assert translate_term("Total", "en") == "Total"
+    assert translate_term("Total", None) == "Total"
+
+
+def test_the_glossary_never_reaches_a_provider(client, iqc_real: Path, fake_provider) -> None:
+    """It is a decided table: asking a model would defeat the point."""
+    version_id = _with_report(client, iqc_real)
+    client.post(f"/api/versions/{version_id}/translation", json={"targetLanguage": "ko"})
+
+    sent = [segment for batch in fake_provider.seen for segment in batch]
+    for term in ("Total", "Imported", "Rej. Lot", "Insp. Lot"):
+        assert all(term not in segment for segment in sent), term

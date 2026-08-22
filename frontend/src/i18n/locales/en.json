@@ -110,9 +110,10 @@
     "chartTitles": "Charts",
     "tableTitles": "Tables",
     "keepWorkbookName": "Keep “{{name}}”",
-    "bars": "Stacked bars",
+    "bars": "Bars",
     "line": "Line",
     "noLine": "No line",
+    "showChart": "Show on the presentation",
     "resetChart": "Back to the default",
     "chartHint": "The rows come from the workbook; choosing changes which of them are drawn, never what they say."
   },
